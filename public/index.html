@@ -24,7 +24,7 @@
       color: var(--text);
       min-height: 100vh;
     }
-    .wrap { max-width: 900px; margin: 0 auto; padding: 28px 18px 50px; }
+    .wrap { max-width: 1050px; margin: 0 auto; padding: 28px 18px 50px; }
     h1 { margin: 0 0 8px; font-size: clamp(30px, 6vw, 52px); }
     p { color: var(--muted); }
     .card {
@@ -35,7 +35,7 @@
       margin-top: 18px;
       box-shadow: 0 18px 50px rgba(0,0,0,.25);
     }
-    .role-buttons, .controls { display: flex; gap: 12px; flex-wrap: wrap; }
+    .role-buttons, .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
     button, input {
       border-radius: 14px;
       border: 1px solid rgba(255,255,255,.12);
@@ -56,6 +56,10 @@
       color: white;
       outline: none;
     }
+    .inline-input { width: 110px; padding: 9px 11px; border-radius: 10px; }
+    .name-input { width: 170px; padding: 9px 11px; border-radius: 10px; }
+    .small-button { padding: 9px 12px; border-radius: 10px; }
+    .score-button { min-width: 62px; }
     .hidden { display: none !important; }
     .buzzer {
       width: min(72vw, 330px);
@@ -71,7 +75,7 @@
       user-select: none;
       touch-action: manipulation;
     }
-    .buzzer:active:not(:disabled) {
+    .buzzer:active:not(:disabled), .buzzer.keyboard-pressed:not(:disabled) {
       transform: translateY(10px);
       box-shadow: 0 8px 0 #410503, 0 18px 30px rgba(0,0,0,.4);
     }
@@ -88,26 +92,36 @@
     .host-close { background: #895600; }
     .host-reset { background: #7d1c18; }
     table { width: 100%; border-collapse: collapse; margin-top: 14px; }
-    th, td { padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,.08); text-align: left; }
+    th, td { padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,.08); text-align: left; vertical-align: middle; }
     th { color: var(--muted); font-weight: 600; }
-    tr:first-child td { font-weight: 800; font-size: 1.08em; }
+    #buzzTable tr:first-child td { font-weight: 800; font-size: 1.08em; }
     .winner { color: #ffd54a; }
-    .pill {
-      display: inline-block;
-      padding: 6px 10px;
-      border-radius: 999px;
-      background: rgba(255,255,255,.08);
-      color: var(--muted);
-      margin: 4px 4px 0 0;
-    }
     .back { margin-top: 20px; background: transparent; }
     .small { font-size: 14px; color: var(--muted); }
+    .hint { text-align:center; font-size: 16px; color: var(--muted); }
+    .points-panel {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin: 18px 0 8px;
+      padding: 14px;
+      background: rgba(255,255,255,.04);
+      border-radius: 14px;
+    }
+    .points-panel label { font-weight: 700; }
+    .score { font-size: 1.2em; font-weight: 800; min-width: 58px; }
+    .player-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+    @media (max-width: 760px) {
+      .desktop-table { display: block; overflow-x: auto; }
+      th, td { white-space: nowrap; }
+    }
   </style>
 </head>
 <body>
   <main class="wrap">
     <h1>🔴 Online Buzzer</h1>
-    <p>Live-Reihenfolge und Reaktionszeit für Quiz, Gameshows und Musikspiele.</p>
+    <p>Live-Reihenfolge, Reaktionszeit und Punkte für Quiz, Gameshows und Musikspiele.</p>
 
     <section id="chooser" class="card">
       <h2>Wie möchtest du beitreten?</h2>
@@ -130,6 +144,7 @@
       <h2 id="helloPlayer">Spieler</h2>
       <div id="playerStatus" class="status closed">Warte auf den Host …</div>
       <button id="buzzer" class="buzzer" disabled>BUZZ!</button>
+      <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
       <p id="playerResult" class="status"></p>
       <button class="back">Zurück</button>
     </section>
@@ -142,14 +157,30 @@
         <button id="resetRound" class="host-reset">Zurücksetzen</button>
       </div>
       <div id="hostStatus" class="status closed">Runde ist geschlossen</div>
+
+      <div class="points-panel">
+        <label for="pointValue">Punkte pro Klick:</label>
+        <input id="pointValue" class="inline-input" type="number" min="0" max="9999" step="1" value="1" />
+        <button id="setPointValue" class="small-button">Übernehmen</button>
+        <span class="small">Beispiel: 3 einstellen → die Spielerbuttons werden +3 / −3.</span>
+      </div>
+
       <p><strong>Verbundene Spieler:</strong> <span id="playerCount">0</span></p>
-      <div id="playerPills"></div>
+      <div class="desktop-table">
+        <table>
+          <thead><tr><th>Spieler / Nickname</th><th>Punkte</th><th>Punkte ändern</th><th>Punktestand setzen</th></tr></thead>
+          <tbody id="playerTable"></tbody>
+        </table>
+      </div>
+
       <h3>Buzz-Reihenfolge</h3>
-      <table>
-        <thead><tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr></thead>
-        <tbody id="buzzTable"></tbody>
-      </table>
-      <p class="small">Die Zeit wird serverseitig gemessen, damit alle Spieler dieselbe Referenz verwenden.</p>
+      <div class="desktop-table">
+        <table>
+          <thead><tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr></thead>
+          <tbody id="buzzTable"></tbody>
+        </table>
+      </div>
+      <p class="small">Die Zeit wird serverseitig gemessen und in Sekunden angezeigt.</p>
       <button class="back">Zurück</button>
     </section>
   </main>
@@ -159,7 +190,10 @@
     const socket = io();
     let role = null;
     let playerName = '';
-    let state = { roundOpen: false, roundStart: null, buzzes: [], players: [] };
+    let playerSocketId = '';
+    let buzzPending = false;
+    let audioContext = null;
+    let state = { roundOpen: false, roundStart: null, buzzes: [], pointValue: 1, players: [] };
 
     const $ = (id) => document.getElementById(id);
     const chooser = $('chooser');
@@ -172,59 +206,133 @@
       el.classList.remove('hidden');
     }
 
+    function ensureAudio() {
+      try {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') audioContext.resume();
+      } catch (_) {}
+    }
+
+    function playBuzzSound() {
+      try {
+        ensureAudio();
+        if (!audioContext) return;
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(220, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(130, audioContext.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.18, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.18);
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.18);
+      } catch (_) {}
+    }
+
     $('playerRole').onclick = () => { role = 'player'; show(playerSetup); $('nameInput').focus(); };
-    $('hostRole').onclick = () => { role = 'host'; show(hostView); render(); };
+    $('hostRole').onclick = () => { role = 'host'; ensureAudio(); show(hostView); render(); };
 
     document.querySelectorAll('.back').forEach(btn => btn.onclick = () => {
       role = null;
       playerName = '';
+      playerSocketId = '';
+      buzzPending = false;
       show(chooser);
     });
 
     function join() {
       const name = $('nameInput').value.trim();
       if (!name) return;
+      ensureAudio();
       playerName = name;
+      playerSocketId = socket.id;
       socket.emit('join-player', name);
       $('helloPlayer').textContent = `Spieler: ${name}`;
       show(playerView);
       render();
     }
 
+    function buzz() {
+      if (role !== 'player' || buzzPending || !state.roundOpen) return;
+      const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
+      if (myBuzz) return;
+      ensureAudio();
+      buzzPending = true;
+      $('buzzer').classList.add('keyboard-pressed');
+      setTimeout(() => $('buzzer').classList.remove('keyboard-pressed'), 100);
+      socket.emit('buzz');
+    }
+
     $('joinButton').onclick = join;
     $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
-    $('buzzer').onclick = () => socket.emit('buzz');
-    $('startRound').onclick = () => socket.emit('host-start');
+    $('buzzer').onclick = buzz;
+
+    document.addEventListener('keydown', (e) => {
+      if (e.code !== 'Space' || e.repeat || role !== 'player' || playerView.classList.contains('hidden')) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      buzz();
+    });
+
+    $('startRound').onclick = () => { ensureAudio(); socket.emit('host-start'); };
     $('closeRound').onclick = () => socket.emit('host-close');
     $('resetRound').onclick = () => socket.emit('host-reset');
+    $('setPointValue').onclick = () => socket.emit('host-set-point-value', $('pointValue').value);
+    $('pointValue').addEventListener('keydown', e => {
+      if (e.key === 'Enter') socket.emit('host-set-point-value', $('pointValue').value);
+    });
 
     socket.on('state', nextState => {
       state = nextState;
+      const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
+      if (!myBuzz) buzzPending = false;
       render();
     });
 
+    socket.on('buzz-confirmed', () => {
+      buzzPending = false;
+      if (role === 'player') playBuzzSound();
+    });
+
+    socket.on('buzz-event', () => {
+      if (role === 'host') playBuzzSound();
+    });
+
+    function seconds(ms) {
+      return `${(ms / 1000).toFixed(3)} s`;
+    }
+
     function render() {
-      const myBuzz = state.buzzes.find(b => b.name === playerName);
+      const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
+      const me = state.players.find(p => p.id === socket.id);
 
       if (role === 'player') {
+        if (me && me.name !== playerName) {
+          playerName = me.name;
+          $('helloPlayer').textContent = `Spieler: ${me.name}`;
+        }
+
         const buzzer = $('buzzer');
         const status = $('playerStatus');
         if (myBuzz) {
           buzzer.disabled = true;
           status.textContent = 'Gebuzzert!';
           status.className = 'status closed';
-          const place = state.buzzes.findIndex(b => b.name === playerName) + 1;
-          $('playerResult').textContent = `Platz ${place} · ${myBuzz.timeMs} ms`;
+          const place = state.buzzes.findIndex(b => b.socketId === socket.id) + 1;
+          $('playerResult').textContent = `Platz ${place} · ${seconds(myBuzz.timeMs)}`;
         } else if (state.roundOpen) {
-          buzzer.disabled = false;
-          status.textContent = 'Buzzer ist offen!';
+          buzzer.disabled = buzzPending;
+          status.textContent = buzzPending ? 'Buzz wird gesendet …' : 'Buzzer ist offen!';
           status.className = 'status open';
-          $('playerResult').textContent = '';
+          $('playerResult').textContent = me ? `Punkte: ${formatNumber(me.score)}` : '';
         } else {
           buzzer.disabled = true;
           status.textContent = 'Warte auf den Host …';
           status.className = 'status closed';
-          $('playerResult').textContent = '';
+          $('playerResult').textContent = me ? `Punkte: ${formatNumber(me.score)}` : '';
         }
       }
 
@@ -232,9 +340,32 @@
         $('hostStatus').textContent = state.roundOpen ? 'Runde läuft – Buzzer offen' : 'Runde ist geschlossen';
         $('hostStatus').className = state.roundOpen ? 'status open' : 'status closed';
         $('playerCount').textContent = state.players.length;
-        $('playerPills').innerHTML = state.players.length
-          ? state.players.map(p => `<span class="pill">${escapeHtml(p.name)}</span>`).join('')
-          : '<span class="small">Noch niemand verbunden.</span>';
+        $('pointValue').value = state.pointValue;
+
+        $('playerTable').innerHTML = state.players.length
+          ? state.players.map(p => `
+            <tr>
+              <td>
+                <div class="player-actions">
+                  <input class="name-input" id="name-${cssSafe(p.id)}" value="${escapeAttribute(p.name)}" maxlength="30">
+                  <button class="small-button" onclick="renamePlayer('${jsSafe(p.id)}')">Name speichern</button>
+                </div>
+              </td>
+              <td class="score">${formatNumber(p.score)}</td>
+              <td>
+                <div class="player-actions">
+                  <button class="small-button score-button" onclick="changeScore('${jsSafe(p.id)}', 1)">+${formatNumber(state.pointValue)}</button>
+                  <button class="small-button score-button" onclick="changeScore('${jsSafe(p.id)}', -1)">−${formatNumber(state.pointValue)}</button>
+                </div>
+              </td>
+              <td>
+                <div class="player-actions">
+                  <input class="inline-input" id="score-${cssSafe(p.id)}" type="number" step="1" value="${p.score}">
+                  <button class="small-button" onclick="setScore('${jsSafe(p.id)}')">Setzen</button>
+                </div>
+              </td>
+            </tr>`).join('')
+          : '<tr><td colspan="4" class="small">Noch niemand verbunden.</td></tr>';
 
         const first = state.buzzes[0]?.timeMs ?? 0;
         $('buzzTable').innerHTML = state.buzzes.length
@@ -242,15 +373,46 @@
             <tr>
               <td class="${i === 0 ? 'winner' : ''}">${i + 1}</td>
               <td>${escapeHtml(b.name)}</td>
-              <td>${b.timeMs} ms</td>
-              <td>${i === 0 ? '—' : '+' + (b.timeMs - first) + ' ms'}</td>
+              <td>${seconds(b.timeMs)}</td>
+              <td>${i === 0 ? '—' : '+' + seconds(b.timeMs - first)}</td>
             </tr>`).join('')
           : '<tr><td colspan="4" class="small">Noch niemand hat gebuzzert.</td></tr>';
       }
     }
 
+    function renamePlayer(id) {
+      const input = document.getElementById(`name-${cssSafe(id)}`);
+      if (input) socket.emit('host-rename-player', { id, name: input.value });
+    }
+
+    function changeScore(id, direction) {
+      socket.emit('host-change-score', { id, direction });
+    }
+
+    function setScore(id) {
+      const input = document.getElementById(`score-${cssSafe(id)}`);
+      if (input) socket.emit('host-set-score', { id, score: input.value });
+    }
+
+    function formatNumber(value) {
+      const n = Number(value);
+      return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
+    }
+
     function escapeHtml(str) {
       return String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    }
+
+    function escapeAttribute(str) {
+      return escapeHtml(str);
+    }
+
+    function cssSafe(str) {
+      return String(str).replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
+
+    function jsSafe(str) {
+      return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     }
   </script>
 </body>
