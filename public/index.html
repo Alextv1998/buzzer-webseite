@@ -137,7 +137,9 @@
     .message-text { white-space:pre-wrap; overflow-wrap:anywhere; color:var(--text); }
     .message-meta { color:var(--muted); font-size:12px; margin-top:7px; }
     .message-targets { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px; margin:10px 0; max-height:230px; overflow:auto; padding-right:4px; }
-    .message-target { display:flex; gap:8px; align-items:center; min-height:40px; padding:8px 10px; border:1px solid rgba(255,255,255,.08); border-radius:10px; background:rgba(255,255,255,.025); }
+    .message-target { display:flex; gap:10px; align-items:center; min-height:40px; padding:8px 10px; border:1px solid rgba(255,255,255,.08); border-radius:10px; background:rgba(255,255,255,.025); }
+    .message-target strong { display:inline; margin:0; }
+    .message-target .target-note { color:var(--muted); margin-left:4px; }
     .message-target input { width:auto; margin:0; accent-color:currentColor; }
     #hostMessage { min-height:88px; resize:vertical; }
     #playerMessages { margin-top:12px; }
@@ -240,7 +242,7 @@
         <section class="dash-card" data-card="teams" data-size="wide">
           <div class="dash-head"><h3>👥 Teams verwalten</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <div class="points-panel"><input id="newTeamName" class="name-input" maxlength="30" placeholder="Neues Team (optional)"><button id="addTeam" class="small-button">Team hinzufügen</button></div>
-          <div class="desktop-table"><table><thead><tr><th>Team</th><th>Mitglieder</th><th>Teampunkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th>Buzzer</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
+          <div class="desktop-table"><table><thead><tr><th>Team</th><th>Mitglieder</th><th>Buzzer</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
         </section>
 
         <section class="dash-card" data-card="players" data-size="wide">
@@ -710,24 +712,11 @@
                     </div>
                   </td>
                   <td style="--team-color:${escapeAttribute(team.color || '#777777')}">${members.length ? members.map(name => `<span class="team-colored">${escapeHtml(name)}</span>`).join(', ') : '<span class="small">Noch niemand</span>'}</td>
-                  <td class="score">${formatNumber(team.score)}</td>
-                  <td>
-                    <div class="player-actions">
-                      <button class="small-button score-button" onclick="changeTeamScore('${jsSafe(team.id)}', 1)">+${formatNumber(state.pointValue)}</button>
-                      <button class="small-button score-button" onclick="changeTeamScore('${jsSafe(team.id)}', -1)">−${formatNumber(state.pointValue)}</button>
-                    </div>
-                  </td>
-                  <td>
-                    <div class="player-actions">
-                      <input class="inline-input" id="team-score-${cssSafe(team.id)}" type="number" step="1" value="${team.score}">
-                      <button class="small-button" onclick="setTeamScore('${jsSafe(team.id)}')">Setzen</button>
-                    </div>
-                  </td>
                   <td><button class="small-button ${team.buzzerLocked ? 'lock-on' : 'lock-off'}" onclick="setTeamBuzzerLock('${jsSafe(team.id)}', ${team.buzzerLocked ? 'false' : 'true'})">${team.buzzerLocked ? '🔒 Gesperrt' : '🔓 Offen'}</button></td>
                   <td><button class="small-button host-reset" onclick="deleteTeam('${jsSafe(team.id)}')">Löschen</button></td>
                 </tr>`;
             }).join('')
-          : '<tr><td colspan="7" class="small">Noch keine Teams angelegt.</td></tr>';
+          : '<tr><td colspan="4" class="small">Noch keine Teams angelegt.</td></tr>';
 
         $('playerTable').innerHTML = state.players.length
           ? state.players.map(p => `
@@ -837,15 +826,6 @@
           e.preventDefault(); socket.emit('host-reorder-team', { id: draggedTeamId, beforeId: '' });
         }
       };
-    }
-
-    function changeTeamScore(id, direction) {
-      socket.emit('host-change-team-score', { id, direction });
-    }
-
-    function setTeamScore(id) {
-      const input = document.getElementById(`team-score-${cssSafe(id)}`);
-      if (input) socket.emit('host-set-team-score', { id, score: input.value });
     }
 
     function setPlayerBuzzerLock(id, locked) { socket.emit('host-set-player-buzzer-lock', { id, locked }); }

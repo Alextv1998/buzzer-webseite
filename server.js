@@ -39,6 +39,16 @@ function publicState() {
     // nicht von der Uhrzeit des Spieler-PCs ab.
     lockRemainingMs: Math.max(0, (player.lockedUntil || 0) - now)
   }));
+
+  // Teampunkte werden immer aus den Einzelpunkten der aktuell zugeordneten
+  // Spieler berechnet. Es gibt keinen separaten Team-Punktestand mehr.
+  const publicTeams = teams.map((team) => ({
+    ...team,
+    score: players
+      .filter((player) => player.teamId === team.id)
+      .reduce((sum, player) => sum + (Number(player.score) || 0), 0)
+  }));
+
   return {
     roundOpen,
     roundStart,
@@ -46,7 +56,7 @@ function publicState() {
     earlyBuzzes,
     pointValue,
     earlyBuzzPenaltySeconds,
-    teams,
+    teams: publicTeams,
     players
   };
 }
@@ -282,22 +292,6 @@ io.on('connection', (socket) => {
 
     recipients.forEach((socketId) => io.to(socketId).emit('host-message', payload));
     socket.emit('host-message-sent', { count: recipients.size, message: text, sentAt: payload.sentAt });
-  });
-
-  socket.on('host-change-team-score', ({ id, direction }) => {
-    const team = getTeam(String(id || ''));
-    if (!team) return;
-    const sign = Number(direction) < 0 ? -1 : 1;
-    team.score += sign * pointValue;
-    broadcastState();
-  });
-
-  socket.on('host-set-team-score', ({ id, score }) => {
-    const team = getTeam(String(id || ''));
-    const parsed = Number(score);
-    if (!team || !Number.isFinite(parsed)) return;
-    team.score = Math.max(-999999, Math.min(999999, parsed));
-    broadcastState();
   });
 
   socket.on('host-set-point-value', (value) => {
