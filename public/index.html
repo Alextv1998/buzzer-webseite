@@ -128,31 +128,31 @@
     input[type=color] { width:48px; height:40px; padding:3px; cursor:pointer; }
 
 
-    /* Frei anordbares Host-Dashboard */
+    /* Frei positionierbares Host-Dashboard */
     #hostView.card { padding: 16px; }
     .host-topbar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:14px; }
     .host-topbar h2 { margin:0; }
     .layout-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .dashboard { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:14px; align-items:start; }
-    .dash-card { grid-column:span 4; background:rgba(16,20,30,.76); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:14px; min-width:0; overflow:auto; }
-    .dash-card[data-size="small"] { grid-column:span 3; }
-    .dash-card[data-size="medium"] { grid-column:span 4; }
-    .dash-card[data-size="large"] { grid-column:span 6; }
-    .dash-card[data-size="wide"] { grid-column:span 8; }
-    .dash-card[data-size="full"] { grid-column:1 / -1; }
-    .dash-card.dragging { opacity:.42; outline:2px dashed var(--yellow); }
+    .dashboard { position:relative; min-height:900px; width:100%; border:1px dashed rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.015); overflow:hidden; }
+    .dash-card { position:absolute; width:360px; background:rgba(16,20,30,.96); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:14px; min-width:260px; max-width:calc(100% - 8px); overflow:auto; box-sizing:border-box; }
+    .dash-card[data-size="small"] { width:300px; }
+    .dash-card[data-size="medium"] { width:380px; }
+    .dash-card[data-size="large"] { width:520px; }
+    .dash-card[data-size="wide"] { width:700px; }
+    .dash-card[data-size="full"] { width:calc(100% - 16px); }
+    .dash-card.dragging { opacity:.72; outline:2px dashed var(--yellow); z-index:1000; }
     .dash-head { display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:10px; }
     .dash-head h3 { margin:0; font-size:1.05rem; }
     .dash-tools { display:flex; gap:5px; align-items:center; }
-    .drag-handle { cursor:grab; user-select:none; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.06); color:var(--muted); font-weight:900; }
+    .drag-handle { cursor:grab; touch-action:none; user-select:none; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.06); color:var(--muted); font-weight:900; }
+    .drag-handle:active { cursor:grabbing; }
     .layout-locked .drag-handle, .layout-locked .size-btn { display:none; }
     .size-btn { padding:6px 9px; min-width:34px; border-radius:8px; }
     .dash-card .points-panel { margin:8px 0; }
     .dash-card table { margin-top:6px; }
     .dash-card .status { margin:8px 0; }
     .dash-note { color:var(--muted); font-size:13px; }
-    @media (max-width: 1100px) { .dash-card, .dash-card[data-size] { grid-column:span 6; } .dash-card[data-size="full"] { grid-column:1/-1; } }
-    @media (max-width: 700px) { .dashboard { grid-template-columns:1fr; } .dash-card, .dash-card[data-size] { grid-column:1/-1; } .layout-actions { width:100%; } }
+    @media (max-width: 700px) { .dashboard { min-height:1400px; } .dash-card, .dash-card[data-size] { width:calc(100% - 16px); } .layout-actions { width:100%; } }
 
     @media (max-width: 760px) {
       .desktop-table { display: block; overflow-x: auto; }
@@ -220,7 +220,6 @@
 
         <section class="dash-card" data-card="teams" data-size="wide">
           <div class="dash-head"><h3>👥 Teams verwalten</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
-          <div class="team-lockbar"><button id="toggleTeamLock" class="small-button">🔓 Team-Aufteilung sperren</button><span id="teamLockHint" class="small">Teams können bearbeitet werden.</span></div>
           <div class="points-panel"><input id="newTeamName" class="name-input" maxlength="30" placeholder="Neues Team (optional)"><button id="addTeam" class="small-button">Team hinzufügen</button></div>
           <div class="desktop-table"><table><thead><tr><th>Team</th><th>Mitglieder</th><th>Teampunkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
         </section>
@@ -256,58 +255,98 @@
     let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, teamSetupLocked: false, teams: [], players: [] };
     let draggedTeamId = null;
     let layoutLocked = localStorage.getItem('buzzer-layout-locked') === '1';
-    let draggedDashCard = null;
     const sizeCycle = ['small','medium','large','wide','full'];
 
+    function defaultDashboardPositions() {
+      const board = $('dashboard'); if (!board) return;
+      const gap = 14, pad = 8;
+      let x = pad, y = pad, rowH = 0;
+      [...board.querySelectorAll('.dash-card')].forEach(card => {
+        const w = card.offsetWidth || 360;
+        if (x + w > board.clientWidth - pad && x > pad) { x = pad; y += rowH + gap; rowH = 0; }
+        card.style.left = x + 'px'; card.style.top = y + 'px';
+        x += w + gap; rowH = Math.max(rowH, card.offsetHeight || 180);
+      });
+      updateDashboardHeight();
+    }
+
     function initDashboardLayout() {
-      const board = $('dashboard');
-      if (!board) return;
-      try {
-        const saved = JSON.parse(localStorage.getItem('buzzer-dashboard-layout') || '[]');
-        saved.forEach(item => {
-          const card = board.querySelector(`[data-card="${item.id}"]`);
-          if (card) { card.dataset.size = item.size || 'medium'; board.appendChild(card); }
-        });
-      } catch (_) {}
-      applyLayoutLock();
+      const board = $('dashboard'); if (!board) return;
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem('buzzer-dashboard-layout-v2') || '{}'); } catch (_) {}
       board.querySelectorAll('.dash-card').forEach(card => {
+        const item = saved[card.dataset.card];
+        if (item) {
+          card.dataset.size = item.size || card.dataset.size || 'medium';
+          card.style.left = Math.max(0, Number(item.x)||0) + 'px';
+          card.style.top = Math.max(0, Number(item.y)||0) + 'px';
+        }
         const handle = card.querySelector('.drag-handle');
         const sizeBtn = card.querySelector('.size-btn');
         if (handle) {
-          handle.draggable = !layoutLocked;
-          handle.addEventListener('dragstart', e => {
-            if (layoutLocked) { e.preventDefault(); return; }
-            draggedDashCard = card; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move';
-          });
-          handle.addEventListener('dragend', () => { card.classList.remove('dragging'); draggedDashCard = null; saveDashboardLayout(); });
+          handle.removeAttribute('draggable');
+          handle.addEventListener('pointerdown', e => beginCardDrag(e, card));
         }
-        card.addEventListener('dragover', e => { if (!layoutLocked && draggedDashCard && draggedDashCard !== card) e.preventDefault(); });
-        card.addEventListener('drop', e => {
-          if (layoutLocked || !draggedDashCard || draggedDashCard === card) return;
-          e.preventDefault();
-          const cards = [...board.children];
-          const from = cards.indexOf(draggedDashCard), to = cards.indexOf(card);
-          if (from < to) card.after(draggedDashCard); else card.before(draggedDashCard);
-          saveDashboardLayout();
-        });
         sizeBtn?.addEventListener('click', () => {
           if (layoutLocked) return;
           const i = sizeCycle.indexOf(card.dataset.size || 'medium');
           card.dataset.size = sizeCycle[(i + 1) % sizeCycle.length];
-          saveDashboardLayout();
+          requestAnimationFrame(() => { clampCard(card); saveDashboardLayout(); updateDashboardHeight(); });
         });
       });
+      if (!Object.keys(saved).length) requestAnimationFrame(() => { defaultDashboardPositions(); saveDashboardLayout(); });
+      else requestAnimationFrame(() => { board.querySelectorAll('.dash-card').forEach(clampCard); updateDashboardHeight(); });
+      applyLayoutLock();
     }
 
+    function beginCardDrag(e, card) {
+      if (layoutLocked || e.button !== 0) return;
+      e.preventDefault();
+      const board = $('dashboard');
+      const boardRect = board.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const offsetX = e.clientX - cardRect.left, offsetY = e.clientY - cardRect.top;
+      card.classList.add('dragging'); card.style.zIndex = '1000';
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+      const move = ev => {
+        const maxX = Math.max(0, board.clientWidth - card.offsetWidth);
+        const x = Math.max(0, Math.min(maxX, ev.clientX - boardRect.left - offsetX));
+        const y = Math.max(0, ev.clientY - boardRect.top - offsetY);
+        card.style.left = Math.round(x) + 'px'; card.style.top = Math.round(y) + 'px';
+        updateDashboardHeight();
+      };
+      const end = () => {
+        card.classList.remove('dragging'); card.style.zIndex = '';
+        window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+        saveDashboardLayout(); updateDashboardHeight();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', end, {once:true});
+      window.addEventListener('pointercancel', end, {once:true});
+    }
+
+    function clampCard(card) {
+      const board = $('dashboard'); if (!board) return;
+      const maxX = Math.max(0, board.clientWidth - card.offsetWidth);
+      const x = Math.max(0, Math.min(maxX, parseFloat(card.style.left)||0));
+      card.style.left = x + 'px';
+      card.style.top = Math.max(0, parseFloat(card.style.top)||0) + 'px';
+    }
+    function updateDashboardHeight() {
+      const board = $('dashboard'); if (!board) return;
+      let bottom = 0;
+      board.querySelectorAll('.dash-card').forEach(c => bottom = Math.max(bottom, (parseFloat(c.style.top)||0) + c.offsetHeight));
+      board.style.minHeight = Math.max(700, bottom + 24) + 'px';
+    }
     function saveDashboardLayout() {
       const board = $('dashboard'); if (!board) return;
-      const data = [...board.querySelectorAll('.dash-card')].map(c => ({id:c.dataset.card,size:c.dataset.size}));
-      localStorage.setItem('buzzer-dashboard-layout', JSON.stringify(data));
+      const data = {};
+      board.querySelectorAll('.dash-card').forEach(c => data[c.dataset.card] = {x:parseFloat(c.style.left)||0,y:parseFloat(c.style.top)||0,size:c.dataset.size});
+      localStorage.setItem('buzzer-dashboard-layout-v2', JSON.stringify(data));
     }
     function applyLayoutLock() {
       const board = $('dashboard'); if (!board) return;
       board.classList.toggle('layout-locked', layoutLocked);
-      board.querySelectorAll('.drag-handle').forEach(h => h.draggable = !layoutLocked);
       const btn = $('toggleLayoutLock'); if (btn) btn.textContent = layoutLocked ? '🔒 Layout entsperren' : '🔓 Layout sperren';
     }
 
@@ -420,10 +459,9 @@
     $('closeRound').onclick = () => socket.emit('host-close');
     $('resetRound').onclick = () => socket.emit('host-reset');
     $('toggleLayoutLock').onclick = () => { layoutLocked = !layoutLocked; localStorage.setItem('buzzer-layout-locked', layoutLocked ? '1' : '0'); applyLayoutLock(); };
-    $('resetLayout').onclick = () => { localStorage.removeItem('buzzer-dashboard-layout'); localStorage.removeItem('buzzer-layout-locked'); location.reload(); };
+    $('resetLayout').onclick = () => { localStorage.removeItem('buzzer-dashboard-layout-v2'); localStorage.removeItem('buzzer-dashboard-layout'); localStorage.removeItem('buzzer-layout-locked'); location.reload(); };
     $('setPointValue').onclick = () => socket.emit('host-set-point-value', $('pointValue').value);
     $('setEarlyPenalty').onclick = () => socket.emit('host-set-early-penalty', $('earlyPenalty').value);
-    $('toggleTeamLock').onclick = () => socket.emit('host-set-team-lock', !state.teamSetupLocked);
     $('addTeam').onclick = () => {
       socket.emit('host-add-team', $('newTeamName').value);
       $('newTeamName').value = '';
@@ -525,17 +563,10 @@
         $('pointValue').value = state.pointValue;
         $('earlyPenalty').value = state.earlyBuzzPenaltySeconds;
         $('earlyPenaltySaved').textContent = `Gespeichert: ${formatNumber(state.earlyBuzzPenaltySeconds)} Sekunden`;
-        $('toggleTeamLock').textContent = state.teamSetupLocked ? '🔒 Team-Aufteilung entsperren' : '🔓 Team-Aufteilung sperren';
-        $('teamLockHint').textContent = state.teamSetupLocked
-          ? 'Team-Aufteilung ist gesperrt. Punkte können weiterhin geändert werden.'
-          : 'Ziehe die Team-Karten in die gewünschte Reihenfolge oder nutze ↑ / ↓.';
-        $('teamLockHint').className = state.teamSetupLocked ? 'small locked-note' : 'small';
-        $('newTeamName').disabled = state.teamSetupLocked;
-        $('addTeam').disabled = state.teamSetupLocked;
 
         $('teamBoard').innerHTML = state.teams.length ? state.teams.map(team => {
           const members = state.players.filter(p => p.teamId === team.id).map(p => p.name);
-          return `<div class="team-card" style="--team-color:${escapeAttribute(team.color || '#777777')}" draggable="${state.teamSetupLocked ? 'false' : 'true'}" data-team-id="${escapeAttribute(team.id)}">
+          return `<div class="team-card" style="--team-color:${escapeAttribute(team.color || '#777777')}" draggable="true" data-team-id="${escapeAttribute(team.id)}">
             <div class="team-card-head"><div class="player-actions"><span class="team-dot"></span><strong>${escapeHtml(team.name)}</strong></div><span class="small">${members.length} Spieler</span></div>
             <div class="team-score-big">${formatNumber(team.score)} Punkte</div>
             <div class="team-members">${members.length ? members.map(escapeHtml).join(' · ') : 'Noch keine Mitglieder'}</div>
@@ -551,11 +582,11 @@
                 <tr>
                   <td>
                     <div class="player-actions">
-                      <input class="name-input" id="team-name-${cssSafe(team.id)}" value="${escapeAttribute(team.name)}" maxlength="30" ${state.teamSetupLocked ? 'disabled' : ''}>
-                      <button class="small-button" onclick="renameTeam('${jsSafe(team.id)}')" ${state.teamSetupLocked ? 'disabled' : ''}>Speichern</button>
-                      <input type="color" value="${escapeAttribute(team.color || '#777777')}" onchange="setTeamColor('${jsSafe(team.id)}', this.value)" ${state.teamSetupLocked ? 'disabled' : ''} title="Teamfarbe">
-                      <button class="small-button" onclick="moveTeam('${jsSafe(team.id)}',-1)" ${state.teamSetupLocked ? 'disabled' : ''}>↑</button>
-                      <button class="small-button" onclick="moveTeam('${jsSafe(team.id)}',1)" ${state.teamSetupLocked ? 'disabled' : ''}>↓</button>
+                      <input class="name-input" id="team-name-${cssSafe(team.id)}" value="${escapeAttribute(team.name)}" maxlength="30">
+                      <button class="small-button" onclick="renameTeam('${jsSafe(team.id)}')">Speichern</button>
+                      <input type="color" value="${escapeAttribute(team.color || '#777777')}" onchange="setTeamColor('${jsSafe(team.id)}', this.value)" title="Teamfarbe">
+                      <button class="small-button" onclick="moveTeam('${jsSafe(team.id)}',-1)">↑</button>
+                      <button class="small-button" onclick="moveTeam('${jsSafe(team.id)}',1)">↓</button>
                     </div>
                   </td>
                   <td>${members.length ? members.map(escapeHtml).join(', ') : '<span class="small">Noch niemand</span>'}</td>
@@ -572,7 +603,7 @@
                       <button class="small-button" onclick="setTeamScore('${jsSafe(team.id)}')">Setzen</button>
                     </div>
                   </td>
-                  <td><button class="small-button host-reset" onclick="deleteTeam('${jsSafe(team.id)}')" ${state.teamSetupLocked ? 'disabled' : ''}>Löschen</button></td>
+                  <td><button class="small-button host-reset" onclick="deleteTeam('${jsSafe(team.id)}')">Löschen</button></td>
                 </tr>`;
             }).join('')
           : '<tr><td colspan="6" class="small">Noch keine Teams angelegt.</td></tr>';
@@ -587,7 +618,7 @@
                 </div>
               </td>
               <td>
-                <select class="inline-input" style="width:150px" onchange="setPlayerTeam('${jsSafe(p.id)}', this.value)" ${state.teamSetupLocked ? 'disabled' : ''}>
+                <select class="inline-input" style="width:150px" onchange="setPlayerTeam('${jsSafe(p.id)}', this.value)">
                   <option value="">Kein Team</option>
                   ${state.teams.map(team => `<option value="${escapeAttribute(team.id)}" ${p.teamId === team.id ? 'selected' : ''}>${escapeHtml(team.name)}</option>`).join('')}
                 </select>
@@ -667,19 +698,19 @@
     function moveTeam(id, direction) { socket.emit('host-move-team', { id, direction }); }
     function bindTeamDrag() {
       document.querySelectorAll('#teamBoard .team-card').forEach(card => {
-        card.addEventListener('dragstart', () => { if (state.teamSetupLocked) return; draggedTeamId = card.dataset.teamId; card.classList.add('dragging'); });
+        card.addEventListener('dragstart', () => { draggedTeamId = card.dataset.teamId; card.classList.add('dragging'); });
         card.addEventListener('dragend', () => { draggedTeamId = null; card.classList.remove('dragging'); });
-        card.addEventListener('dragover', e => { if (!state.teamSetupLocked) e.preventDefault(); });
+        card.addEventListener('dragover', e => { e.preventDefault(); });
         card.addEventListener('drop', e => {
           e.preventDefault();
-          if (!draggedTeamId || draggedTeamId === card.dataset.teamId || state.teamSetupLocked) return;
+          if (!draggedTeamId || draggedTeamId === card.dataset.teamId) return;
           socket.emit('host-reorder-team', { id: draggedTeamId, beforeId: card.dataset.teamId });
         });
       });
       const board = $('teamBoard');
-      board.ondragover = e => { if (!state.teamSetupLocked) e.preventDefault(); };
+      board.ondragover = e => { e.preventDefault(); };
       board.ondrop = e => {
-        if (e.target === board && draggedTeamId && !state.teamSetupLocked) {
+        if (e.target === board && draggedTeamId) {
           e.preventDefault(); socket.emit('host-reorder-team', { id: draggedTeamId, beforeId: '' });
         }
       };
@@ -730,6 +761,8 @@
     function jsSafe(str) {
       return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     }
-  </script>
+  
+    window.addEventListener('resize', () => { const b=$('dashboard'); if(b){ b.querySelectorAll('.dash-card').forEach(clampCard); updateDashboardHeight(); saveDashboardLayout(); } });
+</script>
 </body>
 </html>
