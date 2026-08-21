@@ -37,7 +37,7 @@
       box-shadow: 0 18px 50px rgba(0,0,0,.25);
     }
     .role-buttons, .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    button, input, select {
+    button, input, select, textarea {
       border-radius: 14px;
       border: 1px solid rgba(255,255,255,.12);
       font: inherit;
@@ -50,7 +50,7 @@
       font-weight: 700;
     }
     button:hover { filter: brightness(1.08); }
-    input, select {
+    input, select, textarea {
       width: 100%;
       padding: 14px 16px;
       background: #111621;
@@ -126,6 +126,21 @@
     .team-lockbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:12px 0; }
     .locked-note { color:var(--yellow); font-weight:700; }
     input[type=color] { width:48px; height:40px; padding:3px; cursor:pointer; }
+    .team-colored { color: var(--team-color, var(--text)); font-weight: 800; }
+    .lock-on { background:#7d1c18; }
+    .lock-off { background:#177245; }
+    #helloPlayer { display:inline-block; padding:8px 12px; border-left:6px solid currentColor; border-radius:8px; background:rgba(255,255,255,.04); }
+
+
+    .message-box { border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px; background:rgba(255,255,255,.035); margin:12px 0; }
+    .message-box strong { display:block; margin-bottom:5px; }
+    .message-text { white-space:pre-wrap; overflow-wrap:anywhere; color:var(--text); }
+    .message-meta { color:var(--muted); font-size:12px; margin-top:7px; }
+    .message-targets { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px; margin:10px 0; max-height:230px; overflow:auto; padding-right:4px; }
+    .message-target { display:flex; gap:8px; align-items:center; min-height:40px; padding:8px 10px; border:1px solid rgba(255,255,255,.08); border-radius:10px; background:rgba(255,255,255,.025); }
+    .message-target input { width:auto; margin:0; accent-color:currentColor; }
+    #hostMessage { min-height:88px; resize:vertical; }
+    #playerMessages { margin-top:12px; }
 
 
     /* Frei positionierbares Host-Dashboard */
@@ -188,6 +203,7 @@
     <section id="playerView" class="card hidden">
       <h2 id="helloPlayer">Spieler</h2>
       <div id="playerStatus" class="status closed">Warte auf den Host …</div>
+      <div id="playerMessages"></div>
       <button id="buzzer" class="buzzer" disabled>BUZZ!</button>
       <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
       <p id="playerResult" class="status"></p>
@@ -212,7 +228,7 @@
 
         <section class="dash-card" data-card="settings" data-size="medium">
           <div class="dash-head"><h3>⚙️ Einstellungen</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
-          <div class="points-panel"><label for="pointValue">Punkte pro Klick:</label><input id="pointValue" class="inline-input" type="number" min="0" max="9999" step="1" value="1"><button id="setPointValue" class="small-button">Übernehmen</button></div>
+          <div class="points-panel"><label for="pointValue">Punkte pro Klick:</label><input id="pointValue" class="inline-input" type="number" min="0" max="9999" step="1" value="1"><button id="setPointValue" class="small-button">Übernehmen</button><span class="small" id="pointValueSaved">Gespeichert: 1</span></div>
           <div class="points-panel"><label for="earlyPenalty">Frühstart-Sperre:</label><input id="earlyPenalty" class="inline-input" type="number" min="0" max="60" step="0.5" value="0"><span>Sek.</span><button id="setEarlyPenalty" class="small-button">Übernehmen</button><span class="small" id="earlyPenaltySaved">0 Sekunden</span></div>
         </section>
 
@@ -224,12 +240,21 @@
         <section class="dash-card" data-card="teams" data-size="wide">
           <div class="dash-head"><h3>👥 Teams verwalten</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <div class="points-panel"><input id="newTeamName" class="name-input" maxlength="30" placeholder="Neues Team (optional)"><button id="addTeam" class="small-button">Team hinzufügen</button></div>
-          <div class="desktop-table"><table><thead><tr><th>Team</th><th>Mitglieder</th><th>Teampunkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
+          <div class="desktop-table"><table><thead><tr><th>Team</th><th>Mitglieder</th><th>Teampunkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th>Buzzer</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
         </section>
 
         <section class="dash-card" data-card="players" data-size="wide">
           <div class="dash-head"><h3>🧑 Spieler <span class="small">(<span id="playerCount">0</span>)</span></h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
-          <div class="desktop-table"><table><thead><tr><th>Spieler / Nickname</th><th>Team</th><th>Punkte</th><th>Punkte ändern</th><th>Punktestand setzen</th></tr></thead><tbody id="playerTable"></tbody></table></div>
+          <div class="desktop-table"><table><thead><tr><th>Spieler / Nickname</th><th>Team</th><th>Punkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th>Buzzer</th></tr></thead><tbody id="playerTable"></tbody></table></div>
+        </section>
+
+        <section class="dash-card" data-card="messages" data-size="large">
+          <div class="dash-head"><h3>💬 Nachrichten</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small">Wähle einzelne Spieler, ganze Teams oder alle Spieler aus.</div>
+          <label class="message-target" style="margin-top:10px"><input id="messageAllPlayers" type="checkbox"> <strong>Alle Spieler</strong></label>
+          <div id="messageTargets" class="message-targets"></div>
+          <textarea id="hostMessage" maxlength="500" placeholder="Nachricht eingeben …"></textarea>
+          <div class="controls" style="margin-top:10px"><button id="sendHostMessage" class="host-start">Nachricht senden</button><span id="messageSendStatus" class="small">Noch nichts gesendet.</span></div>
         </section>
 
         <section class="dash-card" data-card="early" data-size="medium">
@@ -255,7 +280,9 @@
     let playerSocketId = '';
     let buzzPending = false;
     let audioContext = null;
-    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, teamSetupLocked: false, teams: [], players: [] };
+    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, teams: [], players: [] };
+    let playerMessages = [];
+    let stateReceivedAt = performance.now();
     let draggedTeamId = null;
     let layoutLocked = localStorage.getItem('buzzer-layout-locked') === '1';
     const sizeCycle = ['small','medium','large','wide','full'];
@@ -304,7 +331,19 @@
         }
       });
       if (!Object.keys(saved).length) requestAnimationFrame(() => { defaultDashboardPositions(); saveDashboardLayout(); });
-      else requestAnimationFrame(() => { board.querySelectorAll('.dash-card').forEach(clampCard); updateDashboardHeight(); });
+      else requestAnimationFrame(() => {
+        let bottom = 8;
+        board.querySelectorAll('.dash-card').forEach(card => {
+          if (saved[card.dataset.card]) {
+            clampCard(card);
+            bottom = Math.max(bottom, (parseFloat(card.style.top)||0) + card.offsetHeight + 14);
+          }
+        });
+        board.querySelectorAll('.dash-card').forEach(card => {
+          if (!saved[card.dataset.card]) { card.style.left = '8px'; card.style.top = bottom + 'px'; bottom += card.offsetHeight + 14; }
+        });
+        updateDashboardHeight(); saveDashboardLayout();
+      });
       applyLayoutLock();
       requestAnimationFrame(() => requestAnimationFrame(() => { dashboardRestoring = false; }));
     }
@@ -443,7 +482,8 @@
       const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
       if (myBuzz) return;
       const me = state.players.find(p => p.id === socket.id);
-      if (state.roundOpen && me && (me.lockedUntil || 0) > Date.now()) return;
+      if (state.roundOpen && me && playerLockRemaining(me) > 0) return;
+      if (me && isBuzzerManuallyLocked(me)) return;
       if (!state.roundOpen && state.roundStart !== null) return;
       ensureAudio();
       buzzPending = true;
@@ -476,6 +516,15 @@
       socket.emit('host-add-team', $('newTeamName').value);
       $('newTeamName').value = '';
     };
+    $('sendHostMessage').onclick = () => {
+      const message = $('hostMessage').value.trim();
+      if (!message) { $('messageSendStatus').textContent = 'Bitte zuerst eine Nachricht eingeben.'; return; }
+      const playerIds = [...document.querySelectorAll('input[data-message-player]:checked')].map(el => el.dataset.messagePlayer);
+      const teamIds = [...document.querySelectorAll('input[data-message-team]:checked')].map(el => el.dataset.messageTeam);
+      const allPlayers = $('messageAllPlayers').checked;
+      if (!allPlayers && !playerIds.length && !teamIds.length) { $('messageSendStatus').textContent = 'Bitte mindestens einen Empfänger auswählen.'; return; }
+      socket.emit('host-send-message', { message, playerIds, teamIds, allPlayers });
+    };
     $('pointValue').addEventListener('keydown', e => {
       if (e.key === 'Enter') socket.emit('host-set-point-value', $('pointValue').value);
     });
@@ -490,6 +539,7 @@
 
     socket.on('state', nextState => {
       state = nextState;
+      stateReceivedAt = performance.now();
       const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
       if (!myBuzz) buzzPending = false;
       render();
@@ -513,10 +563,57 @@
       if (role === 'host') playEarlySound();
     });
 
+    socket.on('host-message', payload => {
+      if (role !== 'player' || !payload?.message) return;
+      playerMessages.unshift(payload);
+      playerMessages = playerMessages.slice(0, 5);
+      renderPlayerMessages();
+    });
+
+    socket.on('host-message-sent', info => {
+      if (role !== 'host') return;
+      $('messageSendStatus').textContent = `Gesendet an ${info?.count ?? 0} Spieler.`;
+      if ((info?.count ?? 0) > 0) $('hostMessage').value = '';
+    });
+
     socket.on('buzz-locked', () => {
       buzzPending = false;
       render();
     });
+
+    socket.on('buzz-disabled', () => {
+      buzzPending = false;
+      render();
+    });
+
+    function renderPlayerMessages() {
+      const box = $('playerMessages');
+      if (!box) return;
+      box.innerHTML = playerMessages.map(item => `
+        <div class="message-box">
+          <strong>💬 Nachricht vom Host</strong>
+          <div class="message-text">${escapeHtml(item.message)}</div>
+          <div class="message-meta">${new Date(item.sentAt || Date.now()).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</div>
+        </div>`).join('');
+    }
+
+    function renderMessageTargets() {
+      const box = $('messageTargets');
+      if (!box) return;
+      const checkedPlayers = new Set([...box.querySelectorAll('input[data-message-player]:checked')].map(el => el.dataset.messagePlayer));
+      const checkedTeams = new Set([...box.querySelectorAll('input[data-message-team]:checked')].map(el => el.dataset.messageTeam));
+      const teamItems = state.teams.map(team => `
+        <label class="message-target" style="color:${escapeAttribute(team.color)}">
+          <input type="checkbox" data-message-team="${escapeAttribute(team.id)}" ${checkedTeams.has(team.id) ? 'checked' : ''}>
+          <span><strong>${escapeHtml(team.name)}</strong><span class="small">Ganzes Team</span></span>
+        </label>`).join('');
+      const playerItems = state.players.map(player => `
+        <label class="message-target" style="color:${escapeAttribute(teamColorFor(player.teamId))}">
+          <input type="checkbox" data-message-player="${escapeAttribute(player.id)}" ${checkedPlayers.has(player.id) ? 'checked' : ''}>
+          <span><strong>${escapeHtml(player.name)}</strong><span class="small">${player.teamId ? escapeHtml(teamNameFor(player.teamId)) : 'Kein Team'}</span></span>
+        </label>`).join('');
+      box.innerHTML = `<div style="grid-column:1/-1" class="small"><strong>Teams</strong></div>${teamItems || '<div class="small">Keine Teams</div>'}<div style="grid-column:1/-1" class="small"><strong>Spieler</strong></div>${playerItems || '<div class="small">Keine Spieler verbunden</div>'}`;
+    }
 
     function seconds(ms) {
       return `${(ms / 1000).toFixed(3)} s`;
@@ -527,6 +624,7 @@
       const me = state.players.find(p => p.id === socket.id);
 
       if (role === 'player') {
+        renderPlayerMessages();
         if (me && me.name !== playerName) {
           playerName = me.name;
           $('helloPlayer').textContent = `Spieler: ${me.name}`;
@@ -534,9 +632,19 @@
 
         const buzzer = $('buzzer');
         const status = $('playerStatus');
+        const myTeam = teamFor(me?.teamId);
+        $('helloPlayer').textContent = me ? `Spieler: ${me.name}${myTeam ? ` · ${myTeam.name}` : ''}` : `Spieler: ${playerName}`;
+        $('helloPlayer').style.color = myTeam?.color || '';
+        $('helloPlayer').style.borderLeftColor = myTeam?.color || 'currentColor';
         const earlyBuzz = state.earlyBuzzes.find(b => b.socketId === socket.id);
-        const remainingMs = Math.max(0, (me?.lockedUntil || 0) - Date.now());
-        if (myBuzz) {
+        const remainingMs = playerLockRemaining(me);
+        const manualLock = me && isBuzzerManuallyLocked(me);
+        if (manualLock) {
+          buzzer.disabled = true;
+          status.textContent = me.buzzerLocked ? 'Dein Buzzer wurde vom Host gesperrt' : `Team ${myTeam?.name || ''}: Buzzer gesperrt`;
+          status.className = 'status closed';
+          $('playerResult').textContent = me ? playerSummary(me) : '';
+        } else if (myBuzz) {
           buzzer.disabled = true;
           status.textContent = 'Gebuzzert!';
           status.className = 'status closed';
@@ -567,19 +675,21 @@
       }
 
       if (role === 'host') {
+        renderMessageTargets();
         $('hostStatus').textContent = state.roundOpen ? 'Runde läuft – Buzzer offen' : 'Runde ist geschlossen';
         $('hostStatus').className = state.roundOpen ? 'status open' : 'status closed';
         $('playerCount').textContent = state.players.length;
         $('pointValue').value = state.pointValue;
+        $('pointValueSaved').textContent = `Gespeichert: ${formatNumber(state.pointValue)} Punkte`;
         $('earlyPenalty').value = state.earlyBuzzPenaltySeconds;
         $('earlyPenaltySaved').textContent = `Gespeichert: ${formatNumber(state.earlyBuzzPenaltySeconds)} Sekunden`;
 
         $('teamBoard').innerHTML = state.teams.length ? state.teams.map(team => {
           const members = state.players.filter(p => p.teamId === team.id).map(p => p.name);
           return `<div class="team-card" style="--team-color:${escapeAttribute(team.color || '#777777')}" draggable="true" data-team-id="${escapeAttribute(team.id)}">
-            <div class="team-card-head"><div class="player-actions"><span class="team-dot"></span><strong>${escapeHtml(team.name)}</strong></div><span class="small">${members.length} Spieler</span></div>
+            <div class="team-card-head"><div class="player-actions"><span class="team-dot"></span><strong class="team-colored">${escapeHtml(team.name)}</strong></div><span class="small">${members.length} Spieler</span></div>
             <div class="team-score-big">${formatNumber(team.score)} Punkte</div>
-            <div class="team-members">${members.length ? members.map(escapeHtml).join(' · ') : 'Noch keine Mitglieder'}</div>
+            <div class="team-members">${members.length ? members.map(name => `<span class="team-colored">${escapeHtml(name)}</span>`).join(' · ') : 'Noch keine Mitglieder'}</div>
           </div>`;
         }).join('') : '<div class="small">Noch keine Teams angelegt.</div>';
         bindTeamDrag();
@@ -592,14 +702,14 @@
                 <tr>
                   <td>
                     <div class="player-actions">
-                      <input class="name-input" id="team-name-${cssSafe(team.id)}" value="${escapeAttribute(team.name)}" maxlength="30">
+                      <span class="team-colored" style="--team-color:${escapeAttribute(team.color || '#777777')}">${escapeHtml(team.name)}</span><input class="name-input" id="team-name-${cssSafe(team.id)}" value="${escapeAttribute(team.name)}" maxlength="30">
                       <button class="small-button" onclick="renameTeam('${jsSafe(team.id)}')">Speichern</button>
                       <input type="color" value="${escapeAttribute(team.color || '#777777')}" onchange="setTeamColor('${jsSafe(team.id)}', this.value)" title="Teamfarbe">
                       <button class="small-button" onclick="moveTeam('${jsSafe(team.id)}',-1)">↑</button>
                       <button class="small-button" onclick="moveTeam('${jsSafe(team.id)}',1)">↓</button>
                     </div>
                   </td>
-                  <td>${members.length ? members.map(escapeHtml).join(', ') : '<span class="small">Noch niemand</span>'}</td>
+                  <td style="--team-color:${escapeAttribute(team.color || '#777777')}">${members.length ? members.map(name => `<span class="team-colored">${escapeHtml(name)}</span>`).join(', ') : '<span class="small">Noch niemand</span>'}</td>
                   <td class="score">${formatNumber(team.score)}</td>
                   <td>
                     <div class="player-actions">
@@ -613,17 +723,18 @@
                       <button class="small-button" onclick="setTeamScore('${jsSafe(team.id)}')">Setzen</button>
                     </div>
                   </td>
+                  <td><button class="small-button ${team.buzzerLocked ? 'lock-on' : 'lock-off'}" onclick="setTeamBuzzerLock('${jsSafe(team.id)}', ${team.buzzerLocked ? 'false' : 'true'})">${team.buzzerLocked ? '🔒 Gesperrt' : '🔓 Offen'}</button></td>
                   <td><button class="small-button host-reset" onclick="deleteTeam('${jsSafe(team.id)}')">Löschen</button></td>
                 </tr>`;
             }).join('')
-          : '<tr><td colspan="6" class="small">Noch keine Teams angelegt.</td></tr>';
+          : '<tr><td colspan="7" class="small">Noch keine Teams angelegt.</td></tr>';
 
         $('playerTable').innerHTML = state.players.length
           ? state.players.map(p => `
             <tr>
               <td>
                 <div class="player-actions">
-                  <input class="name-input" id="name-${cssSafe(p.id)}" value="${escapeAttribute(p.name)}" maxlength="30">
+                  <span class="team-colored" style="--team-color:${escapeAttribute(teamColorFor(p.teamId))}">${escapeHtml(p.name)}</span><input class="name-input" style="color:${escapeAttribute(teamColorFor(p.teamId))}" id="name-${cssSafe(p.id)}" value="${escapeAttribute(p.name)}" maxlength="30">
                   <button class="small-button" onclick="renamePlayer('${jsSafe(p.id)}')">Name speichern</button>
                 </div>
               </td>
@@ -646,18 +757,20 @@
                   <button class="small-button" onclick="setScore('${jsSafe(p.id)}')">Setzen</button>
                 </div>
               </td>
+              <td><button class="small-button ${p.buzzerLocked ? 'lock-on' : 'lock-off'}" onclick="setPlayerBuzzerLock('${jsSafe(p.id)}', ${p.buzzerLocked ? 'false' : 'true'})">${p.buzzerLocked ? '🔒 Gesperrt' : '🔓 Offen'}</button></td>
             </tr>`).join('')
-          : '<tr><td colspan="5" class="small">Noch niemand verbunden.</td></tr>';
+          : '<tr><td colspan="6" class="small">Noch niemand verbunden.</td></tr>';
 
         $('earlyBuzzTable').innerHTML = state.earlyBuzzes.length
           ? state.earlyBuzzes.map(b => {
               const player = state.players.find(p => p.id === b.socketId);
-              const remaining = Math.max(0, (player?.lockedUntil || b.lockedUntil || 0) - Date.now());
+              const remaining = playerLockRemaining(player);
               const statusText = remaining > 0
                 ? `ZU FRÜH · noch ${(remaining / 1000).toFixed(1)} s gesperrt`
                 : (state.earlyBuzzPenaltySeconds > 0 ? 'ZU FRÜH · Sperre abgelaufen' : 'ZU FRÜH');
               const teamName = teamNameFor(b.teamId);
-              return `<tr><td>${escapeHtml(b.name)}${teamName ? ` <span class="small">(${escapeHtml(teamName)})</span>` : ''}</td><td class="early"><strong>${statusText}</strong></td></tr>`;
+              const color = teamColorFor(b.teamId);
+              return `<tr><td style="color:${escapeAttribute(color)};font-weight:800">${escapeHtml(b.name)}${teamName ? ` <span style="color:${escapeAttribute(color)}">(${escapeHtml(teamName)})</span>` : ''}</td><td class="early"><strong>${statusText}</strong></td></tr>`;
             }).join('')
           : '<tr><td colspan="2" class="small">Noch kein Frühstart.</td></tr>';
 
@@ -666,7 +779,7 @@
           ? state.buzzes.map((b, i) => `
             <tr>
               <td class="${i === 0 ? 'winner' : ''}">${i + 1}</td>
-              <td>${escapeHtml(b.name)}${teamNameFor(b.teamId) ? ` <span class="small">(${escapeHtml(teamNameFor(b.teamId))})</span>` : ''}</td>
+              <td style="color:${escapeAttribute(teamColorFor(b.teamId))};font-weight:800">${escapeHtml(b.name)}${teamNameFor(b.teamId) ? ` <span style="color:${escapeAttribute(teamColorFor(b.teamId))}">(${escapeHtml(teamNameFor(b.teamId))})</span>` : ''}</td>
               <td>${seconds(b.timeMs)}</td>
               <td>${i === 0 ? '—' : '+' + seconds(b.timeMs - first)}</td>
             </tr>`).join('')
@@ -735,13 +848,25 @@
       if (input) socket.emit('host-set-team-score', { id, score: input.value });
     }
 
-    function teamNameFor(teamId) {
-      return state.teams.find(team => team.id === teamId)?.name || '';
+    function setPlayerBuzzerLock(id, locked) { socket.emit('host-set-player-buzzer-lock', { id, locked }); }
+    function setTeamBuzzerLock(id, locked) { socket.emit('host-set-team-buzzer-lock', { id, locked }); }
+
+    function teamFor(teamId) { return state.teams.find(team => team.id === teamId) || null; }
+    function teamNameFor(teamId) { return teamFor(teamId)?.name || ''; }
+    function teamColorFor(teamId) { return teamFor(teamId)?.color || '#f7f7fb'; }
+    function isBuzzerManuallyLocked(player) {
+      if (!player) return false;
+      return !!player.buzzerLocked || !!teamFor(player.teamId)?.buzzerLocked;
+    }
+    function playerLockRemaining(player) {
+      if (!player) return 0;
+      const base = Math.max(0, Number(player.lockRemainingMs) || 0);
+      return Math.max(0, base - (performance.now() - stateReceivedAt));
     }
 
     function playerSummary(player) {
-      const team = teamNameFor(player.teamId);
-      return `Punkte: ${formatNumber(player.score)}${team ? ` · Team: ${team}` : ''}`;
+      const team = teamFor(player.teamId);
+      return `Punkte: ${formatNumber(player.score)}${team ? ` · ${team.name}: ${formatNumber(team.score)} Teampunkte` : ''}`;
     }
 
     function formatNumber(value) {

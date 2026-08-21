@@ -1,13 +1,13 @@
-# Online Buzzer – frei konfigurierbares Host-Dashboard
+# Buzzer-Webseite – Nachrichten & Teampunkte
 
 Neu in dieser Version:
-- Host-Zentrale nutzt nahezu die volle Browserbreite.
-- Rundensteuerung, Einstellungen, Team-Anzeige, Teamverwaltung, Spieler, Frühstarter und Buzz-Reihenfolge sind einzelne Dashboard-Karten.
-- Karten per Drag & Drop am Griff ⠿ frei in der Reihenfolge verschieben.
-- Mit ↔ die Kartengröße durchschalten: klein, mittel, groß, breit, volle Breite.
-- Layout sperren/entsperren, damit während der Show nichts verrutscht.
-- Layout wird lokal im Browser gespeichert.
-- Layout zurücksetzen stellt die Standardanordnung wieder her.
-- Bestehende Buzzer-, Team-, Punkte-, Sound- und Frühstart-Funktionen bleiben erhalten.
 
-Für das Update auf GitHub `public/index.html` ersetzen. `server.js` ist gegenüber dem Team-Layout-Update unverändert, kann aber ebenfalls hochgeladen werden.
+- Host-Dashboardfenster **Nachrichten**
+- Nachrichten an **einzelne Spieler**, **ganze Teams**, mehrere Empfänger gleichzeitig oder **alle Spieler**
+- Spieler sehen Host-Nachrichten direkt in ihrer Spieleransicht
+- Spieler sehen ihren **eigenen Punktestand** und zusätzlich den **Punktestand ihres Teams**
+- Teamname und Spielername bleiben in der jeweiligen Teamfarbe dargestellt
+- Frühstart-Sperren sowie manuelle Spieler-/Teamsperren bleiben enthalten
+- Frei verschiebbares und frei skalierbares Host-Dashboard bleibt enthalten
+
+Für das Update auf GitHub `server.js` und `public/index.html` ersetzen.
