@@ -1,0 +1,13 @@
+{
+  "name": "online-buzzer",
+  "version": "1.0.0",
+  "description": "Einfache Online-Buzzer-Webseite mit Live-Reihenfolge und Reaktionszeiten",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "socket.io": "^4.8.1"
+  }
+}
