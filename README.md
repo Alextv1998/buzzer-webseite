@@ -1,11 +1,13 @@
-# Buzzer – Team-Layout Update
+# Online Buzzer – frei konfigurierbares Host-Dashboard
 
-Neu:
-- separate Team-Anzeige als übersichtliche Karten
-- frei wählbare Farbe pro Team
-- Teams per Drag & Drop oder Pfeiltasten sortierbar
-- Team-Aufteilung sperrbar/entsperrbar
-- bei gesperrter Aufteilung bleiben Punkte weiterhin bearbeitbar
-- Spielerzuordnung, Teamnamen, Farben, Reihenfolge, Hinzufügen/Löschen werden beim Sperren geschützt
+Neu in dieser Version:
+- Host-Zentrale nutzt nahezu die volle Browserbreite.
+- Rundensteuerung, Einstellungen, Team-Anzeige, Teamverwaltung, Spieler, Frühstarter und Buzz-Reihenfolge sind einzelne Dashboard-Karten.
+- Karten per Drag & Drop am Griff ⠿ frei in der Reihenfolge verschieben.
+- Mit ↔ die Kartengröße durchschalten: klein, mittel, groß, breit, volle Breite.
+- Layout sperren/entsperren, damit während der Show nichts verrutscht.
+- Layout wird lokal im Browser gespeichert.
+- Layout zurücksetzen stellt die Standardanordnung wieder her.
+- Bestehende Buzzer-, Team-, Punkte-, Sound- und Frühstart-Funktionen bleiben erhalten.
 
-Für GitHub `server.js` und `public/index.html` ersetzen und committen. Render deployt danach neu.
+Für das Update auf GitHub `public/index.html` ersetzen. `server.js` ist gegenüber dem Team-Layout-Update unverändert, kann aber ebenfalls hochgeladen werden.

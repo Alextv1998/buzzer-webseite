@@ -25,7 +25,7 @@
       color: var(--text);
       min-height: 100vh;
     }
-    .wrap { max-width: 1050px; margin: 0 auto; padding: 28px 18px 50px; }
+    .wrap { width: 100%; max-width: none; margin: 0; padding: 24px clamp(14px, 2vw, 34px) 50px; }
     h1 { margin: 0 0 8px; font-size: clamp(30px, 6vw, 52px); }
     p { color: var(--muted); }
     .card {
@@ -127,6 +127,33 @@
     .locked-note { color:var(--yellow); font-weight:700; }
     input[type=color] { width:48px; height:40px; padding:3px; cursor:pointer; }
 
+
+    /* Frei anordbares Host-Dashboard */
+    #hostView.card { padding: 16px; }
+    .host-topbar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:14px; }
+    .host-topbar h2 { margin:0; }
+    .layout-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .dashboard { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:14px; align-items:start; }
+    .dash-card { grid-column:span 4; background:rgba(16,20,30,.76); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:14px; min-width:0; overflow:auto; }
+    .dash-card[data-size="small"] { grid-column:span 3; }
+    .dash-card[data-size="medium"] { grid-column:span 4; }
+    .dash-card[data-size="large"] { grid-column:span 6; }
+    .dash-card[data-size="wide"] { grid-column:span 8; }
+    .dash-card[data-size="full"] { grid-column:1 / -1; }
+    .dash-card.dragging { opacity:.42; outline:2px dashed var(--yellow); }
+    .dash-head { display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .dash-head h3 { margin:0; font-size:1.05rem; }
+    .dash-tools { display:flex; gap:5px; align-items:center; }
+    .drag-handle { cursor:grab; user-select:none; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.06); color:var(--muted); font-weight:900; }
+    .layout-locked .drag-handle, .layout-locked .size-btn { display:none; }
+    .size-btn { padding:6px 9px; min-width:34px; border-radius:8px; }
+    .dash-card .points-panel { margin:8px 0; }
+    .dash-card table { margin-top:6px; }
+    .dash-card .status { margin:8px 0; }
+    .dash-note { color:var(--muted); font-size:13px; }
+    @media (max-width: 1100px) { .dash-card, .dash-card[data-size] { grid-column:span 6; } .dash-card[data-size="full"] { grid-column:1/-1; } }
+    @media (max-width: 700px) { .dashboard { grid-template-columns:1fr; } .dash-card, .dash-card[data-size] { grid-column:1/-1; } .layout-actions { width:100%; } }
+
     @media (max-width: 760px) {
       .desktop-table { display: block; overflow-x: auto; }
       th, td { white-space: nowrap; }
@@ -165,73 +192,55 @@
     </section>
 
     <section id="hostView" class="card hidden">
-      <h2>Host-Zentrale</h2>
-      <div class="controls">
-        <button id="startRound" class="host-start">Runde starten</button>
-        <button id="closeRound" class="host-close">Buzzer sperren</button>
-        <button id="resetRound" class="host-reset">Zurücksetzen</button>
-      </div>
-      <div id="hostStatus" class="status closed">Runde ist geschlossen</div>
-
-      <div class="points-panel">
-        <label for="pointValue">Punkte pro Klick:</label>
-        <input id="pointValue" class="inline-input" type="number" min="0" max="9999" step="1" value="1" />
-        <button id="setPointValue" class="small-button">Übernehmen</button>
-        <span class="small">Beispiel: 3 einstellen → die Spielerbuttons werden +3 / −3.</span>
+      <div class="host-topbar">
+        <div><h2>Host-Zentrale</h2><div class="dash-note">Ordne die Bereiche so an, wie du sie für deine Show brauchst.</div></div>
+        <div class="layout-actions">
+          <button id="toggleLayoutLock" class="small-button">🔓 Layout sperren</button>
+          <button id="resetLayout" class="small-button">Layout zurücksetzen</button>
+        </div>
       </div>
 
-      <div class="points-panel">
-        <label for="earlyPenalty">Sperre bei zu frühem Buzzern:</label>
-        <input id="earlyPenalty" class="inline-input" type="number" min="0" max="60" step="0.5" value="0" />
-        <span>Sekunden</span>
-        <button id="setEarlyPenalty" class="small-button">Übernehmen</button>
-        <span class="small" id="earlyPenaltySaved">0 Sekunden = Frühstart nur anzeigen, ohne Sperre.</span>
-      </div>
+      <div id="dashboard" class="dashboard">
+        <section class="dash-card" data-card="round" data-size="medium">
+          <div class="dash-head"><h3>🎮 Rundensteuerung</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="controls"><button id="startRound" class="host-start">Runde starten</button><button id="closeRound" class="host-close">Buzzer sperren</button><button id="resetRound" class="host-reset">Zurücksetzen</button></div>
+          <div id="hostStatus" class="status closed">Runde ist geschlossen</div>
+        </section>
 
-      <h3>Team-Anzeige</h3>
-      <div id="teamBoard" class="team-board"></div>
+        <section class="dash-card" data-card="settings" data-size="medium">
+          <div class="dash-head"><h3>⚙️ Einstellungen</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="points-panel"><label for="pointValue">Punkte pro Klick:</label><input id="pointValue" class="inline-input" type="number" min="0" max="9999" step="1" value="1"><button id="setPointValue" class="small-button">Übernehmen</button></div>
+          <div class="points-panel"><label for="earlyPenalty">Frühstart-Sperre:</label><input id="earlyPenalty" class="inline-input" type="number" min="0" max="60" step="0.5" value="0"><span>Sek.</span><button id="setEarlyPenalty" class="small-button">Übernehmen</button><span class="small" id="earlyPenaltySaved">0 Sekunden</span></div>
+        </section>
 
-      <h3>Teams verwalten</h3>
-      <div class="team-lockbar">
-        <button id="toggleTeamLock" class="small-button">🔓 Team-Aufteilung sperren</button>
-        <span id="teamLockHint" class="small">Teams können verschoben, gefärbt und Spieler zugeordnet werden.</span>
-      </div>
-      <div class="points-panel">
-        <input id="newTeamName" class="name-input" maxlength="30" placeholder="Neues Team (optional)">
-        <button id="addTeam" class="small-button">Team hinzufügen</button>
-        <span class="small">Teampunkte sind unabhängig von den Einzelpunkten und nutzen ebenfalls den eingestellten Punktewert.</span>
-      </div>
-      <div class="desktop-table">
-        <table>
-          <thead><tr><th>Team</th><th>Mitglieder</th><th>Teampunkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th></th></tr></thead>
-          <tbody id="teamTable"></tbody>
-        </table>
-      </div>
+        <section class="dash-card" data-card="teamboard" data-size="large">
+          <div class="dash-head"><h3>🏆 Team-Anzeige</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div id="teamBoard" class="team-board"></div>
+        </section>
 
-      <p><strong>Verbundene Spieler:</strong> <span id="playerCount">0</span></p>
-      <div class="desktop-table">
-        <table>
-          <thead><tr><th>Spieler / Nickname</th><th>Team</th><th>Punkte</th><th>Punkte ändern</th><th>Punktestand setzen</th></tr></thead>
-          <tbody id="playerTable"></tbody>
-        </table>
-      </div>
+        <section class="dash-card" data-card="teams" data-size="wide">
+          <div class="dash-head"><h3>👥 Teams verwalten</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="team-lockbar"><button id="toggleTeamLock" class="small-button">🔓 Team-Aufteilung sperren</button><span id="teamLockHint" class="small">Teams können bearbeitet werden.</span></div>
+          <div class="points-panel"><input id="newTeamName" class="name-input" maxlength="30" placeholder="Neues Team (optional)"><button id="addTeam" class="small-button">Team hinzufügen</button></div>
+          <div class="desktop-table"><table><thead><tr><th>Team</th><th>Mitglieder</th><th>Teampunkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
+        </section>
 
-      <h3>Zu früh gebuzzert</h3>
-      <div class="desktop-table">
-        <table>
-          <thead><tr><th>Spieler</th><th>Status</th></tr></thead>
-          <tbody id="earlyBuzzTable"></tbody>
-        </table>
-      </div>
+        <section class="dash-card" data-card="players" data-size="wide">
+          <div class="dash-head"><h3>🧑 Spieler <span class="small">(<span id="playerCount">0</span>)</span></h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="desktop-table"><table><thead><tr><th>Spieler / Nickname</th><th>Team</th><th>Punkte</th><th>Punkte ändern</th><th>Punktestand setzen</th></tr></thead><tbody id="playerTable"></tbody></table></div>
+        </section>
 
-      <h3>Buzz-Reihenfolge</h3>
-      <div class="desktop-table">
-        <table>
-          <thead><tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr></thead>
-          <tbody id="buzzTable"></tbody>
-        </table>
+        <section class="dash-card" data-card="early" data-size="medium">
+          <div class="dash-head"><h3>⚠️ Zu früh gebuzzert</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="desktop-table"><table><thead><tr><th>Spieler</th><th>Status</th></tr></thead><tbody id="earlyBuzzTable"></tbody></table></div>
+        </section>
+
+        <section class="dash-card" data-card="buzzes" data-size="large">
+          <div class="dash-head"><h3>🔴 Buzz-Reihenfolge</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="desktop-table"><table><thead><tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr></thead><tbody id="buzzTable"></tbody></table></div>
+          <p class="small">Die Zeit wird serverseitig gemessen und in Sekunden angezeigt.</p>
+        </section>
       </div>
-      <p class="small">Die Zeit wird serverseitig gemessen und in Sekunden angezeigt.</p>
       <button class="back">Zurück</button>
     </section>
   </main>
@@ -246,6 +255,61 @@
     let audioContext = null;
     let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, teamSetupLocked: false, teams: [], players: [] };
     let draggedTeamId = null;
+    let layoutLocked = localStorage.getItem('buzzer-layout-locked') === '1';
+    let draggedDashCard = null;
+    const sizeCycle = ['small','medium','large','wide','full'];
+
+    function initDashboardLayout() {
+      const board = $('dashboard');
+      if (!board) return;
+      try {
+        const saved = JSON.parse(localStorage.getItem('buzzer-dashboard-layout') || '[]');
+        saved.forEach(item => {
+          const card = board.querySelector(`[data-card="${item.id}"]`);
+          if (card) { card.dataset.size = item.size || 'medium'; board.appendChild(card); }
+        });
+      } catch (_) {}
+      applyLayoutLock();
+      board.querySelectorAll('.dash-card').forEach(card => {
+        const handle = card.querySelector('.drag-handle');
+        const sizeBtn = card.querySelector('.size-btn');
+        if (handle) {
+          handle.draggable = !layoutLocked;
+          handle.addEventListener('dragstart', e => {
+            if (layoutLocked) { e.preventDefault(); return; }
+            draggedDashCard = card; card.classList.add('dragging'); e.dataTransfer.effectAllowed = 'move';
+          });
+          handle.addEventListener('dragend', () => { card.classList.remove('dragging'); draggedDashCard = null; saveDashboardLayout(); });
+        }
+        card.addEventListener('dragover', e => { if (!layoutLocked && draggedDashCard && draggedDashCard !== card) e.preventDefault(); });
+        card.addEventListener('drop', e => {
+          if (layoutLocked || !draggedDashCard || draggedDashCard === card) return;
+          e.preventDefault();
+          const cards = [...board.children];
+          const from = cards.indexOf(draggedDashCard), to = cards.indexOf(card);
+          if (from < to) card.after(draggedDashCard); else card.before(draggedDashCard);
+          saveDashboardLayout();
+        });
+        sizeBtn?.addEventListener('click', () => {
+          if (layoutLocked) return;
+          const i = sizeCycle.indexOf(card.dataset.size || 'medium');
+          card.dataset.size = sizeCycle[(i + 1) % sizeCycle.length];
+          saveDashboardLayout();
+        });
+      });
+    }
+
+    function saveDashboardLayout() {
+      const board = $('dashboard'); if (!board) return;
+      const data = [...board.querySelectorAll('.dash-card')].map(c => ({id:c.dataset.card,size:c.dataset.size}));
+      localStorage.setItem('buzzer-dashboard-layout', JSON.stringify(data));
+    }
+    function applyLayoutLock() {
+      const board = $('dashboard'); if (!board) return;
+      board.classList.toggle('layout-locked', layoutLocked);
+      board.querySelectorAll('.drag-handle').forEach(h => h.draggable = !layoutLocked);
+      const btn = $('toggleLayoutLock'); if (btn) btn.textContent = layoutLocked ? '🔒 Layout entsperren' : '🔓 Layout sperren';
+    }
 
     const $ = (id) => document.getElementById(id);
     const chooser = $('chooser');
@@ -355,6 +419,8 @@
     $('startRound').onclick = () => { ensureAudio(); socket.emit('host-start'); };
     $('closeRound').onclick = () => socket.emit('host-close');
     $('resetRound').onclick = () => socket.emit('host-reset');
+    $('toggleLayoutLock').onclick = () => { layoutLocked = !layoutLocked; localStorage.setItem('buzzer-layout-locked', layoutLocked ? '1' : '0'); applyLayoutLock(); };
+    $('resetLayout').onclick = () => { localStorage.removeItem('buzzer-dashboard-layout'); localStorage.removeItem('buzzer-layout-locked'); location.reload(); };
     $('setPointValue').onclick = () => socket.emit('host-set-point-value', $('pointValue').value);
     $('setEarlyPenalty').onclick = () => socket.emit('host-set-early-penalty', $('earlyPenalty').value);
     $('toggleTeamLock').onclick = () => socket.emit('host-set-team-lock', !state.teamSetupLocked);
@@ -371,6 +437,8 @@
     $('newTeamName').addEventListener('keydown', e => {
       if (e.key === 'Enter') $('addTeam').click();
     });
+
+    initDashboardLayout();
 
     socket.on('state', nextState => {
       state = nextState;
