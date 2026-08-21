@@ -130,6 +130,11 @@
     .lock-on { background:#7d1c18; }
     .lock-off { background:#177245; }
     #helloPlayer { display:inline-block; padding:8px 12px; border-left:6px solid currentColor; border-radius:8px; background:rgba(255,255,255,.04); }
+    .brand-title { color: var(--orange); font-size: clamp(34px, 5vw, 58px); font-weight: 900; margin:0 0 4px; letter-spacing:.3px; }
+    .game-info-player { margin:12px auto 4px; max-width:760px; padding:14px 16px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); }
+    .game-info-player h3 { margin:0 0 8px; }
+    .game-rules-text { white-space:pre-wrap; color:var(--muted); margin:0; }
+    .player-buzz-details { margin-top:18px; }
 
 
     .message-box { border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px; background:rgba(255,255,255,.035); margin:12px 0; }
@@ -182,6 +187,7 @@
 </head>
 <body>
   <main class="wrap">
+    <div class="brand-title">#Musiklex</div>
     <h1>🔴 Online Buzzer</h1>
     <p>Live-Reihenfolge, Reaktionszeit und Punkte für Quiz, Gameshows und Musikspiele.</p>
 
@@ -204,11 +210,13 @@
 
     <section id="playerView" class="card hidden">
       <h2 id="helloPlayer">Spieler</h2>
+      <div id="playerGameInfo" class="game-info-player hidden"><h3 id="playerGameName"></h3><p id="playerGameRules" class="game-rules-text"></p></div>
       <div id="playerStatus" class="status closed">Warte auf den Host …</div>
       <div id="playerMessages"></div>
       <button id="buzzer" class="buzzer" disabled>BUZZ!</button>
       <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
       <p id="playerResult" class="status"></p>
+      <div id="playerBuzzDetails" class="player-buzz-details hidden"><h3>Buzz-Reihenfolge</h3><div class="desktop-table"><table><thead><tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr></thead><tbody id="playerBuzzTable"></tbody></table></div></div>
       <button class="back">Zurück</button>
     </section>
 
@@ -259,6 +267,22 @@
           <div class="controls" style="margin-top:10px"><button id="sendHostMessage" class="host-start">Nachricht senden</button><span id="messageSendStatus" class="small">Noch nichts gesendet.</span></div>
         </section>
 
+
+        <section class="dash-card" data-card="playerdisplay" data-size="medium">
+          <div class="dash-head"><h3>👁️ Spieleranzeige</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label class="message-target"><input id="showPlayerBuzzDetails" type="checkbox"> <span><strong>Buzz-Reihenfolge bei Spielern anzeigen</strong><span class="small">Zeigt Zeiten und Abstand zum Schnellsten wie in der Host-Ansicht.</span></span></label>
+          <div class="small" id="playerDisplaySaved">Aktuell: ausgeblendet</div>
+        </section>
+
+        <section class="dash-card" data-card="gameinfo" data-size="large">
+          <div class="dash-head"><h3>🎵 Aktuelles Spiel</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label for="currentGameName">Spielname</label>
+          <input id="currentGameName" maxlength="80" placeholder="z. B. Verdammt, wann kommt er!">
+          <label for="currentGameRules" style="display:block;margin-top:10px">Regeln / Hinweis</label>
+          <textarea id="currentGameRules" maxlength="1500" placeholder="Kurze Regeln oder Hinweise für die Spieler …" style="min-height:120px;resize:vertical"></textarea>
+          <div class="controls" style="margin-top:10px"><button id="saveGameInfo" class="host-start">Bei Spielern anzeigen</button><button id="clearGameInfo" class="small-button">Leeren</button><span id="gameInfoSaved" class="small">Noch nichts gespeichert.</span></div>
+        </section>
+
         <section class="dash-card" data-card="early" data-size="medium">
           <div class="dash-head"><h3>⚠️ Zu früh gebuzzert</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <div class="desktop-table"><table><thead><tr><th>Spieler</th><th>Status</th></tr></thead><tbody id="earlyBuzzTable"></tbody></table></div>
@@ -282,7 +306,7 @@
     let playerSocketId = '';
     let buzzPending = false;
     let audioContext = null;
-    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, teams: [], players: [] };
+    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, showPlayerBuzzDetails: false, currentGameName: '', currentGameRules: '', teams: [], players: [] };
     let playerMessages = [];
     let stateReceivedAt = performance.now();
     let draggedTeamId = null;
@@ -536,6 +560,19 @@
     $('newTeamName').addEventListener('keydown', e => {
       if (e.key === 'Enter') $('addTeam').click();
     });
+    $('showPlayerBuzzDetails').addEventListener('change', e => {
+      socket.emit('host-set-player-buzz-details', e.target.checked);
+    });
+    $('saveGameInfo').onclick = () => {
+      socket.emit('host-set-game-info', { name: $('currentGameName').value, rules: $('currentGameRules').value });
+      $('gameInfoSaved').textContent = 'Gespeichert.';
+    };
+    $('clearGameInfo').onclick = () => {
+      $('currentGameName').value = '';
+      $('currentGameRules').value = '';
+      socket.emit('host-set-game-info', { name: '', rules: '' });
+      $('gameInfoSaved').textContent = 'Anzeige geleert.';
+    };
 
     initDashboardLayout();
 
@@ -638,6 +675,17 @@
         $('helloPlayer').textContent = me ? `Spieler: ${me.name}${myTeam ? ` · ${myTeam.name}` : ''}` : `Spieler: ${playerName}`;
         $('helloPlayer').style.color = myTeam?.color || '';
         $('helloPlayer').style.borderLeftColor = myTeam?.color || 'currentColor';
+        const gameInfoBox = $('playerGameInfo');
+        const hasGameInfo = !!(state.currentGameName || state.currentGameRules);
+        gameInfoBox.classList.toggle('hidden', !hasGameInfo);
+        $('playerGameName').textContent = state.currentGameName || 'Aktuelles Spiel';
+        $('playerGameRules').textContent = state.currentGameRules || '';
+        const detailsBox = $('playerBuzzDetails');
+        detailsBox.classList.toggle('hidden', !state.showPlayerBuzzDetails);
+        if (state.showPlayerBuzzDetails) {
+          const firstBuzz = state.buzzes[0]?.timeMs ?? 0;
+          $('playerBuzzTable').innerHTML = state.buzzes.length ? state.buzzes.map((b, i) => `<tr><td class="${i===0?'winner':''}">${i+1}</td><td style="color:${escapeAttribute(teamColorFor(b.teamId))};font-weight:800">${escapeHtml(b.name)}${teamNameFor(b.teamId) ? ` <span>(${escapeHtml(teamNameFor(b.teamId))})</span>` : ''}</td><td>${seconds(b.timeMs)}</td><td>${i===0?'—':'+'+seconds(b.timeMs-firstBuzz)}</td></tr>`).join('') : '<tr><td colspan="4" class="small">Noch niemand hat gebuzzert.</td></tr>';
+        }
         const earlyBuzz = state.earlyBuzzes.find(b => b.socketId === socket.id);
         const remainingMs = playerLockRemaining(me);
         const manualLock = me && isBuzzerManuallyLocked(me);
@@ -685,6 +733,10 @@
         $('pointValueSaved').textContent = `Gespeichert: ${formatNumber(state.pointValue)} Punkte`;
         $('earlyPenalty').value = state.earlyBuzzPenaltySeconds;
         $('earlyPenaltySaved').textContent = `Gespeichert: ${formatNumber(state.earlyBuzzPenaltySeconds)} Sekunden`;
+        $('showPlayerBuzzDetails').checked = !!state.showPlayerBuzzDetails;
+        $('playerDisplaySaved').textContent = state.showPlayerBuzzDetails ? 'Aktuell: eingeblendet' : 'Aktuell: ausgeblendet';
+        if (document.activeElement !== $('currentGameName')) $('currentGameName').value = state.currentGameName || '';
+        if (document.activeElement !== $('currentGameRules')) $('currentGameRules').value = state.currentGameRules || '';
 
         $('teamBoard').innerHTML = state.teams.length ? state.teams.map(team => {
           const members = state.players.filter(p => p.teamId === team.id).map(p => p.name);

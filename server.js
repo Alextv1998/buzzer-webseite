@@ -15,6 +15,9 @@ let buzzes = [];
 let earlyBuzzes = [];
 let pointValue = 1;
 let earlyBuzzPenaltySeconds = 0;
+let showPlayerBuzzDetails = false;
+let currentGameName = '';
+let currentGameRules = '';
 let connectedPlayers = new Map();
 let nextTeamId = 3;
 let teams = [
@@ -56,6 +59,9 @@ function publicState() {
     earlyBuzzes,
     pointValue,
     earlyBuzzPenaltySeconds,
+    showPlayerBuzzDetails,
+    currentGameName,
+    currentGameRules,
     teams: publicTeams,
     players
   };
@@ -292,6 +298,18 @@ io.on('connection', (socket) => {
 
     recipients.forEach((socketId) => io.to(socketId).emit('host-message', payload));
     socket.emit('host-message-sent', { count: recipients.size, message: text, sentAt: payload.sentAt });
+  });
+
+
+  socket.on('host-set-player-buzz-details', (value) => {
+    showPlayerBuzzDetails = Boolean(value);
+    broadcastState();
+  });
+
+  socket.on('host-set-game-info', ({ name, rules }) => {
+    currentGameName = String(name || '').trim().slice(0, 80);
+    currentGameRules = String(rules || '').trim().slice(0, 1500);
+    broadcastState();
   });
 
   socket.on('host-set-point-value', (value) => {
