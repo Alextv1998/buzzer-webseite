@@ -134,7 +134,8 @@
     .host-topbar h2 { margin:0; }
     .layout-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .dashboard { position:relative; min-height:900px; width:100%; border:1px dashed rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.015); overflow:hidden; }
-    .dash-card { position:absolute; width:360px; background:rgba(16,20,30,.96); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:14px; min-width:260px; max-width:calc(100% - 8px); overflow:auto; box-sizing:border-box; }
+    .dash-card { position:absolute; width:360px; background:rgba(16,20,30,.96); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:14px; min-width:260px; min-height:150px; max-width:calc(100% - 8px); overflow:auto; box-sizing:border-box; resize:both; }
+    .dash-card::after { content:'↘'; position:absolute; right:5px; bottom:2px; color:var(--muted); font-size:15px; pointer-events:none; opacity:.8; }
     .dash-card[data-size="small"] { width:300px; }
     .dash-card[data-size="medium"] { width:380px; }
     .dash-card[data-size="large"] { width:520px; }
@@ -147,6 +148,8 @@
     .drag-handle { cursor:grab; touch-action:none; user-select:none; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.06); color:var(--muted); font-weight:900; }
     .drag-handle:active { cursor:grabbing; }
     .layout-locked .drag-handle, .layout-locked .size-btn { display:none; }
+    .layout-locked .dash-card { resize:none; }
+    .layout-locked .dash-card::after { display:none; }
     .size-btn { padding:6px 9px; min-width:34px; border-radius:8px; }
     .dash-card .points-panel { margin:8px 0; }
     .dash-card table { margin-top:6px; }
@@ -256,6 +259,7 @@
     let draggedTeamId = null;
     let layoutLocked = localStorage.getItem('buzzer-layout-locked') === '1';
     const sizeCycle = ['small','medium','large','wide','full'];
+    let dashboardRestoring = true;
 
     function defaultDashboardPositions() {
       const board = $('dashboard'); if (!board) return;
@@ -278,6 +282,8 @@
         const item = saved[card.dataset.card];
         if (item) {
           card.dataset.size = item.size || card.dataset.size || 'medium';
+          if (Number(item.width) > 0) { card.style.width = Math.max(260, Number(item.width)) + 'px'; card.dataset.size = ''; }
+          if (Number(item.height) > 0) card.style.height = Math.max(150, Number(item.height)) + 'px';
           card.style.left = Math.max(0, Number(item.x)||0) + 'px';
           card.style.top = Math.max(0, Number(item.y)||0) + 'px';
         }
@@ -287,16 +293,20 @@
           handle.removeAttribute('draggable');
           handle.addEventListener('pointerdown', e => beginCardDrag(e, card));
         }
-        sizeBtn?.addEventListener('click', () => {
-          if (layoutLocked) return;
-          const i = sizeCycle.indexOf(card.dataset.size || 'medium');
-          card.dataset.size = sizeCycle[(i + 1) % sizeCycle.length];
-          requestAnimationFrame(() => { clampCard(card); saveDashboardLayout(); updateDashboardHeight(); });
-        });
+        if (sizeBtn) sizeBtn.style.display = 'none';
+        if ('ResizeObserver' in window) {
+          const ro = new ResizeObserver(() => {
+            if (dashboardRestoring || layoutLocked) return;
+            card.dataset.size = '';
+            clampCard(card); updateDashboardHeight(); saveDashboardLayout();
+          });
+          ro.observe(card);
+        }
       });
       if (!Object.keys(saved).length) requestAnimationFrame(() => { defaultDashboardPositions(); saveDashboardLayout(); });
       else requestAnimationFrame(() => { board.querySelectorAll('.dash-card').forEach(clampCard); updateDashboardHeight(); });
       applyLayoutLock();
+      requestAnimationFrame(() => requestAnimationFrame(() => { dashboardRestoring = false; }));
     }
 
     function beginCardDrag(e, card) {
@@ -341,7 +351,7 @@
     function saveDashboardLayout() {
       const board = $('dashboard'); if (!board) return;
       const data = {};
-      board.querySelectorAll('.dash-card').forEach(c => data[c.dataset.card] = {x:parseFloat(c.style.left)||0,y:parseFloat(c.style.top)||0,size:c.dataset.size});
+      board.querySelectorAll('.dash-card').forEach(c => data[c.dataset.card] = {x:parseFloat(c.style.left)||0,y:parseFloat(c.style.top)||0,size:c.dataset.size,width:c.offsetWidth,height:c.offsetHeight});
       localStorage.setItem('buzzer-dashboard-layout-v2', JSON.stringify(data));
     }
     function applyLayoutLock() {
