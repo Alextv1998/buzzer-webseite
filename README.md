@@ -1,23 +1,11 @@
-# Online Buzzer – Update mit Frühstart & Teams
+# Buzzer – Team-Layout Update
 
-Dieses Update ergänzt die bestehende Buzzer-Webseite um:
+Neu:
+- separate Team-Anzeige als übersichtliche Karten
+- frei wählbare Farbe pro Team
+- Teams per Drag & Drop oder Pfeiltasten sortierbar
+- Team-Aufteilung sperrbar/entsperrbar
+- bei gesperrter Aufteilung bleiben Punkte weiterhin bearbeitbar
+- Spielerzuordnung, Teamnamen, Farben, Reihenfolge, Hinzufügen/Löschen werden beim Sperren geschützt
 
-- Frühstart-Erkennung: Buzzern vor Rundenstart wird dem Host angezeigt.
-- Einstellbare Frühstart-Sperre von 0 bis 60 Sekunden.
-- Teamverwaltung im Host-Bereich.
-- Teams anlegen, umbenennen und löschen.
-- Spieler per Dropdown einem Team zuordnen.
-- Separate Teampunkte mit frei einstellbarem Punktewert (+/-) und direkter Punkteingabe.
-- Teamname wird bei Buzz-Reihenfolge und Frühstart angezeigt.
-- Spieler sehen ihr Team in ihrer eigenen Ansicht.
-
-## Update auf GitHub
-
-Im bestehenden Repository diese Dateien ersetzen:
-
-- `server.js`
-- `public/index.html`
-
-Danach committen. Render sollte den neuen Commit automatisch deployen; andernfalls `Manual Deploy` → `Deploy latest commit`.
-
-Hinweis: Punkte, Teams und Zuordnungen werden aktuell im Arbeitsspeicher des Servers gehalten. Bei einem Neustart/Neu-Deploy von Render werden sie zurückgesetzt.
+Für GitHub `server.js` und `public/index.html` ersetzen und committen. Render deployt danach neu.

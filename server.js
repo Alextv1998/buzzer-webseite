@@ -15,11 +15,12 @@ let buzzes = [];
 let earlyBuzzes = [];
 let pointValue = 1;
 let earlyBuzzPenaltySeconds = 0;
+let teamSetupLocked = false;
 let connectedPlayers = new Map();
 let nextTeamId = 3;
 let teams = [
-  { id: 'team-1', name: 'Team 1', score: 0 },
-  { id: 'team-2', name: 'Team 2', score: 0 }
+  { id: 'team-1', name: 'Team 1', score: 0, color: '#3b82f6' },
+  { id: 'team-2', name: 'Team 2', score: 0, color: '#ef4444' }
 ];
 
 function cleanName(value, fallback = '') {
@@ -39,6 +40,7 @@ function publicState() {
     earlyBuzzes,
     pointValue,
     earlyBuzzPenaltySeconds,
+    teamSetupLocked,
     teams,
     players: Array.from(connectedPlayers.values())
   };
@@ -157,6 +159,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('host-set-player-team', ({ id, teamId }) => {
+    if (teamSetupLocked) return;
     const player = connectedPlayers.get(String(id || ''));
     const nextTeamId = String(teamId || '');
     if (!player) return;
@@ -173,13 +176,14 @@ io.on('connection', (socket) => {
   });
 
   socket.on('host-add-team', (name) => {
-    if (teams.length >= 12) return;
+    if (teamSetupLocked || teams.length >= 12) return;
     const id = `team-${nextTeamId++}`;
-    teams.push({ id, name: cleanName(name, `Team ${teams.length + 1}`), score: 0 });
+    teams.push({ id, name: cleanName(name, `Team ${teams.length + 1}`), score: 0, color: '#8b5cf6' });
     broadcastState();
   });
 
   socket.on('host-rename-team', ({ id, name }) => {
+    if (teamSetupLocked) return;
     const team = getTeam(String(id || ''));
     if (!team) return;
     team.name = cleanName(name, team.name);
@@ -187,6 +191,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('host-delete-team', (id) => {
+    if (teamSetupLocked) return;
     const teamId = String(id || '');
     if (!getTeam(teamId)) return;
     teams = teams.filter((team) => team.id !== teamId);
@@ -195,6 +200,44 @@ io.on('connection', (socket) => {
     }
     buzzes.forEach((buzz) => { if (buzz.teamId === teamId) buzz.teamId = ''; });
     earlyBuzzes.forEach((buzz) => { if (buzz.teamId === teamId) buzz.teamId = ''; });
+    broadcastState();
+  });
+
+
+  socket.on('host-set-team-color', ({ id, color }) => {
+    if (teamSetupLocked) return;
+    const team = getTeam(String(id || ''));
+    const clean = String(color || '').trim();
+    if (!team || !/^#[0-9a-fA-F]{6}$/.test(clean)) return;
+    team.color = clean;
+    broadcastState();
+  });
+
+  socket.on('host-move-team', ({ id, direction }) => {
+    if (teamSetupLocked) return;
+    const index = teams.findIndex(t => t.id === String(id || ''));
+    if (index < 0) return;
+    const target = index + (Number(direction) < 0 ? -1 : 1);
+    if (target < 0 || target >= teams.length) return;
+    [teams[index], teams[target]] = [teams[target], teams[index]];
+    broadcastState();
+  });
+
+  socket.on('host-reorder-team', ({ id, beforeId }) => {
+    if (teamSetupLocked) return;
+    const from = teams.findIndex(t => t.id === String(id || ''));
+    if (from < 0) return;
+    const [team] = teams.splice(from, 1);
+    if (!beforeId) teams.push(team);
+    else {
+      const to = teams.findIndex(t => t.id === String(beforeId));
+      if (to < 0) teams.push(team); else teams.splice(to, 0, team);
+    }
+    broadcastState();
+  });
+
+  socket.on('host-set-team-lock', (locked) => {
+    teamSetupLocked = Boolean(locked);
     broadcastState();
   });
 
@@ -222,9 +265,26 @@ io.on('connection', (socket) => {
   });
 
   socket.on('host-set-early-penalty', (value) => {
-    const parsed = Number(value);
+    const parsed = Number(String(value).replace(',', '.'));
     if (!Number.isFinite(parsed)) return;
     earlyBuzzPenaltySeconds = Math.max(0, Math.min(60, parsed));
+
+    // Falls die Sperrzeit während eines Tests geändert wird, keine alte
+    // (z. B. 60-Sekunden-)Sperre weiterlaufen lassen. Bereits gesperrte
+    // Frühstarter bekommen ab jetzt exakt die neu eingestellte Dauer.
+    const now = Date.now();
+    for (const player of connectedPlayers.values()) {
+      if ((player.lockedUntil || 0) > now) {
+        player.lockedUntil = earlyBuzzPenaltySeconds > 0
+          ? now + Math.round(earlyBuzzPenaltySeconds * 1000)
+          : 0;
+      }
+    }
+    earlyBuzzes.forEach((buzz) => {
+      const player = connectedPlayers.get(buzz.socketId);
+      buzz.lockedUntil = player?.lockedUntil || 0;
+    });
+
     broadcastState();
   });
 

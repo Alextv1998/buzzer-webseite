@@ -37,7 +37,7 @@
       box-shadow: 0 18px 50px rgba(0,0,0,.25);
     }
     .role-buttons, .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
-    button, input {
+    button, input, select {
       border-radius: 14px;
       border: 1px solid rgba(255,255,255,.12);
       font: inherit;
@@ -50,7 +50,7 @@
       font-weight: 700;
     }
     button:hover { filter: brightness(1.08); }
-    input {
+    input, select {
       width: 100%;
       padding: 14px 16px;
       background: #111621;
@@ -114,6 +114,19 @@
     .points-panel label { font-weight: 700; }
     .score { font-size: 1.2em; font-weight: 800; min-width: 58px; }
     .player-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+
+    .team-board { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin:14px 0 20px; }
+    .team-card { border:2px solid var(--team-color,#666); border-radius:16px; padding:14px; background:rgba(255,255,255,.035); min-width:0; }
+    .team-card.dragging { opacity:.45; }
+    .team-card-head { display:flex; gap:9px; align-items:center; justify-content:space-between; }
+    .team-dot { width:16px; height:16px; border-radius:50%; background:var(--team-color); flex:0 0 auto; }
+    .team-score-big { font-size:2rem; font-weight:900; margin:8px 0 4px; }
+    .team-members { color:var(--muted); font-size:14px; overflow-wrap:anywhere; }
+    .team-tools { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
+    .team-lockbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:12px 0; }
+    .locked-note { color:var(--yellow); font-weight:700; }
+    input[type=color] { width:48px; height:40px; padding:3px; cursor:pointer; }
+
     @media (max-width: 760px) {
       .desktop-table { display: block; overflow-x: auto; }
       th, td { white-space: nowrap; }
@@ -172,10 +185,17 @@
         <input id="earlyPenalty" class="inline-input" type="number" min="0" max="60" step="0.5" value="0" />
         <span>Sekunden</span>
         <button id="setEarlyPenalty" class="small-button">Übernehmen</button>
-        <span class="small">0 Sekunden = Frühstart nur anzeigen, ohne Sperre.</span>
+        <span class="small" id="earlyPenaltySaved">0 Sekunden = Frühstart nur anzeigen, ohne Sperre.</span>
       </div>
 
-      <h3>Teams</h3>
+      <h3>Team-Anzeige</h3>
+      <div id="teamBoard" class="team-board"></div>
+
+      <h3>Teams verwalten</h3>
+      <div class="team-lockbar">
+        <button id="toggleTeamLock" class="small-button">🔓 Team-Aufteilung sperren</button>
+        <span id="teamLockHint" class="small">Teams können verschoben, gefärbt und Spieler zugeordnet werden.</span>
+      </div>
       <div class="points-panel">
         <input id="newTeamName" class="name-input" maxlength="30" placeholder="Neues Team (optional)">
         <button id="addTeam" class="small-button">Team hinzufügen</button>
@@ -224,7 +244,8 @@
     let playerSocketId = '';
     let buzzPending = false;
     let audioContext = null;
-    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, teams: [], players: [] };
+    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, teamSetupLocked: false, teams: [], players: [] };
+    let draggedTeamId = null;
 
     const $ = (id) => document.getElementById(id);
     const chooser = $('chooser');
@@ -336,6 +357,7 @@
     $('resetRound').onclick = () => socket.emit('host-reset');
     $('setPointValue').onclick = () => socket.emit('host-set-point-value', $('pointValue').value);
     $('setEarlyPenalty').onclick = () => socket.emit('host-set-early-penalty', $('earlyPenalty').value);
+    $('toggleTeamLock').onclick = () => socket.emit('host-set-team-lock', !state.teamSetupLocked);
     $('addTeam').onclick = () => {
       socket.emit('host-add-team', $('newTeamName').value);
       $('newTeamName').value = '';
@@ -434,6 +456,25 @@
         $('playerCount').textContent = state.players.length;
         $('pointValue').value = state.pointValue;
         $('earlyPenalty').value = state.earlyBuzzPenaltySeconds;
+        $('earlyPenaltySaved').textContent = `Gespeichert: ${formatNumber(state.earlyBuzzPenaltySeconds)} Sekunden`;
+        $('toggleTeamLock').textContent = state.teamSetupLocked ? '🔒 Team-Aufteilung entsperren' : '🔓 Team-Aufteilung sperren';
+        $('teamLockHint').textContent = state.teamSetupLocked
+          ? 'Team-Aufteilung ist gesperrt. Punkte können weiterhin geändert werden.'
+          : 'Ziehe die Team-Karten in die gewünschte Reihenfolge oder nutze ↑ / ↓.';
+        $('teamLockHint').className = state.teamSetupLocked ? 'small locked-note' : 'small';
+        $('newTeamName').disabled = state.teamSetupLocked;
+        $('addTeam').disabled = state.teamSetupLocked;
+
+        $('teamBoard').innerHTML = state.teams.length ? state.teams.map(team => {
+          const members = state.players.filter(p => p.teamId === team.id).map(p => p.name);
+          return `<div class="team-card" style="--team-color:${escapeAttribute(team.color || '#777777')}" draggable="${state.teamSetupLocked ? 'false' : 'true'}" data-team-id="${escapeAttribute(team.id)}">
+            <div class="team-card-head"><div class="player-actions"><span class="team-dot"></span><strong>${escapeHtml(team.name)}</strong></div><span class="small">${members.length} Spieler</span></div>
+            <div class="team-score-big">${formatNumber(team.score)} Punkte</div>
+            <div class="team-members">${members.length ? members.map(escapeHtml).join(' · ') : 'Noch keine Mitglieder'}</div>
+          </div>`;
+        }).join('') : '<div class="small">Noch keine Teams angelegt.</div>';
+        bindTeamDrag();
+
 
         $('teamTable').innerHTML = state.teams.length
           ? state.teams.map(team => {
@@ -442,8 +483,11 @@
                 <tr>
                   <td>
                     <div class="player-actions">
-                      <input class="name-input" id="team-name-${cssSafe(team.id)}" value="${escapeAttribute(team.name)}" maxlength="30">
-                      <button class="small-button" onclick="renameTeam('${jsSafe(team.id)}')">Speichern</button>
+                      <input class="name-input" id="team-name-${cssSafe(team.id)}" value="${escapeAttribute(team.name)}" maxlength="30" ${state.teamSetupLocked ? 'disabled' : ''}>
+                      <button class="small-button" onclick="renameTeam('${jsSafe(team.id)}')" ${state.teamSetupLocked ? 'disabled' : ''}>Speichern</button>
+                      <input type="color" value="${escapeAttribute(team.color || '#777777')}" onchange="setTeamColor('${jsSafe(team.id)}', this.value)" ${state.teamSetupLocked ? 'disabled' : ''} title="Teamfarbe">
+                      <button class="small-button" onclick="moveTeam('${jsSafe(team.id)}',-1)" ${state.teamSetupLocked ? 'disabled' : ''}>↑</button>
+                      <button class="small-button" onclick="moveTeam('${jsSafe(team.id)}',1)" ${state.teamSetupLocked ? 'disabled' : ''}>↓</button>
                     </div>
                   </td>
                   <td>${members.length ? members.map(escapeHtml).join(', ') : '<span class="small">Noch niemand</span>'}</td>
@@ -460,7 +504,7 @@
                       <button class="small-button" onclick="setTeamScore('${jsSafe(team.id)}')">Setzen</button>
                     </div>
                   </td>
-                  <td><button class="small-button host-reset" onclick="deleteTeam('${jsSafe(team.id)}')">Löschen</button></td>
+                  <td><button class="small-button host-reset" onclick="deleteTeam('${jsSafe(team.id)}')" ${state.teamSetupLocked ? 'disabled' : ''}>Löschen</button></td>
                 </tr>`;
             }).join('')
           : '<tr><td colspan="6" class="small">Noch keine Teams angelegt.</td></tr>';
@@ -475,7 +519,7 @@
                 </div>
               </td>
               <td>
-                <select class="inline-input" style="width:150px" onchange="setPlayerTeam('${jsSafe(p.id)}', this.value)">
+                <select class="inline-input" style="width:150px" onchange="setPlayerTeam('${jsSafe(p.id)}', this.value)" ${state.teamSetupLocked ? 'disabled' : ''}>
                   <option value="">Kein Team</option>
                   ${state.teams.map(team => `<option value="${escapeAttribute(team.id)}" ${p.teamId === team.id ? 'selected' : ''}>${escapeHtml(team.name)}</option>`).join('')}
                 </select>
@@ -548,6 +592,29 @@
       if (confirm('Team wirklich löschen? Die Spieler bleiben verbunden und werden nur aus dem Team entfernt.')) {
         socket.emit('host-delete-team', id);
       }
+    }
+
+
+    function setTeamColor(id, color) { socket.emit('host-set-team-color', { id, color }); }
+    function moveTeam(id, direction) { socket.emit('host-move-team', { id, direction }); }
+    function bindTeamDrag() {
+      document.querySelectorAll('#teamBoard .team-card').forEach(card => {
+        card.addEventListener('dragstart', () => { if (state.teamSetupLocked) return; draggedTeamId = card.dataset.teamId; card.classList.add('dragging'); });
+        card.addEventListener('dragend', () => { draggedTeamId = null; card.classList.remove('dragging'); });
+        card.addEventListener('dragover', e => { if (!state.teamSetupLocked) e.preventDefault(); });
+        card.addEventListener('drop', e => {
+          e.preventDefault();
+          if (!draggedTeamId || draggedTeamId === card.dataset.teamId || state.teamSetupLocked) return;
+          socket.emit('host-reorder-team', { id: draggedTeamId, beforeId: card.dataset.teamId });
+        });
+      });
+      const board = $('teamBoard');
+      board.ondragover = e => { if (!state.teamSetupLocked) e.preventDefault(); };
+      board.ondrop = e => {
+        if (e.target === board && draggedTeamId && !state.teamSetupLocked) {
+          e.preventDefault(); socket.emit('host-reorder-team', { id: draggedTeamId, beforeId: '' });
+        }
+      };
     }
 
     function changeTeamScore(id, direction) {
