@@ -15,7 +15,7 @@
       --accent: #ff3b30;
       --green: #2ecc71;
       --yellow: #f1c40f;
-      --orange: #ff8c2a;
+      --orange: #ff6500;
     }
     * { box-sizing: border-box; }
     body {
@@ -130,7 +130,7 @@
     .lock-on { background:#7d1c18; }
     .lock-off { background:#177245; }
     #helloPlayer { display:inline-block; padding:8px 12px; border-left:6px solid currentColor; border-radius:8px; background:rgba(255,255,255,.04); }
-    .brand-title { color: var(--orange); font-size: clamp(34px, 5vw, 58px); font-weight: 900; margin:0 0 4px; letter-spacing:.3px; }
+    .brand-title { color: var(--orange); font-size: clamp(42px, 6vw, 68px); font-weight: 950; margin:0 0 8px; letter-spacing:.2px; text-shadow:0 0 18px rgba(255,101,0,.18); }
     .game-info-player { margin:12px auto 4px; max-width:760px; padding:14px 16px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); }
     .game-info-player h3 { margin:0 0 8px; }
     .game-rules-text { white-space:pre-wrap; color:var(--muted); margin:0; }
@@ -144,7 +144,11 @@
     .message-targets { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px; margin:10px 0; max-height:230px; overflow:auto; padding-right:4px; }
     .message-target { display:flex; gap:10px; align-items:center; min-height:40px; padding:8px 10px; border:1px solid rgba(255,255,255,.08); border-radius:10px; background:rgba(255,255,255,.025); }
     .message-target strong { display:inline; margin:0; }
-    .message-target .target-note { color:var(--muted); margin-left:4px; }
+    .message-target .target-note { color:var(--muted); margin-left:6px; }
+    .message-target .target-inline { display:flex; align-items:baseline; gap:7px; min-width:0; flex-wrap:wrap; }
+    .message-target .target-inline .small { margin:0; }
+    .message-target .target-stack { display:block; min-width:0; line-height:1.3; }
+    .message-target .target-stack .small { display:block; margin-top:3px; white-space:normal; }
     .message-target input { width:auto; margin:0; accent-color:currentColor; }
     #hostMessage { min-height:88px; resize:vertical; }
     #playerMessages { margin-top:12px; }
@@ -188,7 +192,6 @@
 <body>
   <main class="wrap">
     <div class="brand-title">#Musiklex</div>
-    <h1>🔴 Online Buzzer</h1>
     <p>Live-Reihenfolge, Reaktionszeit und Punkte für Quiz, Gameshows und Musikspiele.</p>
 
     <section id="chooser" class="card">
@@ -270,7 +273,7 @@
 
         <section class="dash-card" data-card="playerdisplay" data-size="medium">
           <div class="dash-head"><h3>👁️ Spieleranzeige</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
-          <label class="message-target"><input id="showPlayerBuzzDetails" type="checkbox"> <span><strong>Buzz-Reihenfolge bei Spielern anzeigen</strong><span class="small">Zeigt Zeiten und Abstand zum Schnellsten wie in der Host-Ansicht.</span></span></label>
+          <label class="message-target"><input id="showPlayerBuzzDetails" type="checkbox"><span class="target-stack"><strong>Buzz-Reihenfolge bei Spielern anzeigen</strong><span class="small">Zeigt Zeiten und Abstand zum Schnellsten wie in der Host-Ansicht.</span></span></label>
           <div class="small" id="playerDisplaySaved">Aktuell: ausgeblendet</div>
         </section>
 
@@ -644,12 +647,12 @@
       const teamItems = state.teams.map(team => `
         <label class="message-target" style="color:${escapeAttribute(team.color)}">
           <input type="checkbox" data-message-team="${escapeAttribute(team.id)}" ${checkedTeams.has(team.id) ? 'checked' : ''}>
-          <span><strong>${escapeHtml(team.name)}</strong><span class="small">Ganzes Team</span></span>
+          <span class="target-inline"><strong>${escapeHtml(team.name)}</strong><span class="small">Ganzes Team</span></span>
         </label>`).join('');
       const playerItems = state.players.map(player => `
         <label class="message-target" style="color:${escapeAttribute(teamColorFor(player.teamId))}">
           <input type="checkbox" data-message-player="${escapeAttribute(player.id)}" ${checkedPlayers.has(player.id) ? 'checked' : ''}>
-          <span><strong>${escapeHtml(player.name)}</strong><span class="small">${player.teamId ? escapeHtml(teamNameFor(player.teamId)) : 'Kein Team'}</span></span>
+          <span class="target-inline"><strong>${escapeHtml(player.name)}</strong><span class="small">${player.teamId ? escapeHtml(teamNameFor(player.teamId)) : 'Kein Team'}</span></span>
         </label>`).join('');
       box.innerHTML = `<div style="grid-column:1/-1" class="small"><strong>Teams</strong></div>${teamItems || '<div class="small">Keine Teams</div>'}<div style="grid-column:1/-1" class="small"><strong>Spieler</strong></div>${playerItems || '<div class="small">Keine Spieler verbunden</div>'}`;
     }
