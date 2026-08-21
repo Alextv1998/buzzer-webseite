@@ -15,6 +15,7 @@
       --accent: #ff3b30;
       --green: #2ecc71;
       --yellow: #f1c40f;
+      --orange: #ff8c2a;
     }
     * { box-sizing: border-box; }
     body {
@@ -88,6 +89,7 @@
     }
     .open { color: var(--green); }
     .closed { color: var(--yellow); }
+    .early { color: var(--orange); }
     .host-start { background: #177245; }
     .host-close { background: #895600; }
     .host-reset { background: #7d1c18; }
@@ -165,11 +167,40 @@
         <span class="small">Beispiel: 3 einstellen → die Spielerbuttons werden +3 / −3.</span>
       </div>
 
+      <div class="points-panel">
+        <label for="earlyPenalty">Sperre bei zu frühem Buzzern:</label>
+        <input id="earlyPenalty" class="inline-input" type="number" min="0" max="60" step="0.5" value="0" />
+        <span>Sekunden</span>
+        <button id="setEarlyPenalty" class="small-button">Übernehmen</button>
+        <span class="small">0 Sekunden = Frühstart nur anzeigen, ohne Sperre.</span>
+      </div>
+
+      <h3>Teams</h3>
+      <div class="points-panel">
+        <input id="newTeamName" class="name-input" maxlength="30" placeholder="Neues Team (optional)">
+        <button id="addTeam" class="small-button">Team hinzufügen</button>
+        <span class="small">Teampunkte sind unabhängig von den Einzelpunkten und nutzen ebenfalls den eingestellten Punktewert.</span>
+      </div>
+      <div class="desktop-table">
+        <table>
+          <thead><tr><th>Team</th><th>Mitglieder</th><th>Teampunkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th></th></tr></thead>
+          <tbody id="teamTable"></tbody>
+        </table>
+      </div>
+
       <p><strong>Verbundene Spieler:</strong> <span id="playerCount">0</span></p>
       <div class="desktop-table">
         <table>
-          <thead><tr><th>Spieler / Nickname</th><th>Punkte</th><th>Punkte ändern</th><th>Punktestand setzen</th></tr></thead>
+          <thead><tr><th>Spieler / Nickname</th><th>Team</th><th>Punkte</th><th>Punkte ändern</th><th>Punktestand setzen</th></tr></thead>
           <tbody id="playerTable"></tbody>
+        </table>
+      </div>
+
+      <h3>Zu früh gebuzzert</h3>
+      <div class="desktop-table">
+        <table>
+          <thead><tr><th>Spieler</th><th>Status</th></tr></thead>
+          <tbody id="earlyBuzzTable"></tbody>
         </table>
       </div>
 
@@ -193,7 +224,7 @@
     let playerSocketId = '';
     let buzzPending = false;
     let audioContext = null;
-    let state = { roundOpen: false, roundStart: null, buzzes: [], pointValue: 1, players: [] };
+    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, teams: [], players: [] };
 
     const $ = (id) => document.getElementById(id);
     const chooser = $('chooser');
@@ -231,6 +262,25 @@
       } catch (_) {}
     }
 
+    function playEarlySound() {
+      try {
+        ensureAudio();
+        if (!audioContext) return;
+        [0, 0.12].forEach((delay) => {
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.type = 'square';
+          oscillator.frequency.setValueAtTime(420, audioContext.currentTime + delay);
+          gain.gain.setValueAtTime(0.13, audioContext.currentTime + delay);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + delay + 0.09);
+          oscillator.connect(gain);
+          gain.connect(audioContext.destination);
+          oscillator.start(audioContext.currentTime + delay);
+          oscillator.stop(audioContext.currentTime + delay + 0.09);
+        });
+      } catch (_) {}
+    }
+
     $('playerRole').onclick = () => { role = 'player'; show(playerSetup); $('nameInput').focus(); };
     $('hostRole').onclick = () => { role = 'host'; ensureAudio(); show(hostView); render(); };
 
@@ -255,14 +305,18 @@
     }
 
     function buzz() {
-      if (role !== 'player' || buzzPending || !state.roundOpen) return;
+      if (role !== 'player' || buzzPending) return;
       const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
       if (myBuzz) return;
+      const me = state.players.find(p => p.id === socket.id);
+      if (state.roundOpen && me && (me.lockedUntil || 0) > Date.now()) return;
+      if (!state.roundOpen && state.roundStart !== null) return;
       ensureAudio();
       buzzPending = true;
       $('buzzer').classList.add('keyboard-pressed');
       setTimeout(() => $('buzzer').classList.remove('keyboard-pressed'), 100);
       socket.emit('buzz');
+      setTimeout(() => { buzzPending = false; render(); }, 800);
     }
 
     $('joinButton').onclick = join;
@@ -281,8 +335,19 @@
     $('closeRound').onclick = () => socket.emit('host-close');
     $('resetRound').onclick = () => socket.emit('host-reset');
     $('setPointValue').onclick = () => socket.emit('host-set-point-value', $('pointValue').value);
+    $('setEarlyPenalty').onclick = () => socket.emit('host-set-early-penalty', $('earlyPenalty').value);
+    $('addTeam').onclick = () => {
+      socket.emit('host-add-team', $('newTeamName').value);
+      $('newTeamName').value = '';
+    };
     $('pointValue').addEventListener('keydown', e => {
       if (e.key === 'Enter') socket.emit('host-set-point-value', $('pointValue').value);
+    });
+    $('earlyPenalty').addEventListener('keydown', e => {
+      if (e.key === 'Enter') socket.emit('host-set-early-penalty', $('earlyPenalty').value);
+    });
+    $('newTeamName').addEventListener('keydown', e => {
+      if (e.key === 'Enter') $('addTeam').click();
     });
 
     socket.on('state', nextState => {
@@ -301,6 +366,20 @@
       if (role === 'host') playBuzzSound();
     });
 
+    socket.on('early-buzz-confirmed', () => {
+      buzzPending = false;
+      if (role === 'player') playEarlySound();
+    });
+
+    socket.on('early-buzz-event', () => {
+      if (role === 'host') playEarlySound();
+    });
+
+    socket.on('buzz-locked', () => {
+      buzzPending = false;
+      render();
+    });
+
     function seconds(ms) {
       return `${(ms / 1000).toFixed(3)} s`;
     }
@@ -317,22 +396,35 @@
 
         const buzzer = $('buzzer');
         const status = $('playerStatus');
+        const earlyBuzz = state.earlyBuzzes.find(b => b.socketId === socket.id);
+        const remainingMs = Math.max(0, (me?.lockedUntil || 0) - Date.now());
         if (myBuzz) {
           buzzer.disabled = true;
           status.textContent = 'Gebuzzert!';
           status.className = 'status closed';
           const place = state.buzzes.findIndex(b => b.socketId === socket.id) + 1;
           $('playerResult').textContent = `Platz ${place} · ${seconds(myBuzz.timeMs)}`;
+        } else if (state.roundOpen && remainingMs > 0) {
+          buzzer.disabled = true;
+          status.textContent = `Zu früh! Noch ${(remainingMs / 1000).toFixed(1)} s gesperrt`;
+          status.className = 'status early';
+          $('playerResult').textContent = me ? playerSummary(me) : '';
         } else if (state.roundOpen) {
           buzzer.disabled = buzzPending;
           status.textContent = buzzPending ? 'Buzz wird gesendet …' : 'Buzzer ist offen!';
           status.className = 'status open';
-          $('playerResult').textContent = me ? `Punkte: ${formatNumber(me.score)}` : '';
+          $('playerResult').textContent = me ? playerSummary(me) : '';
+        } else if (state.roundStart === null) {
+          buzzer.disabled = buzzPending || !!earlyBuzz;
+          status.textContent = earlyBuzz ? 'ZU FRÜH GEBUZZERT!' : 'Warte auf den Host …';
+          status.className = earlyBuzz ? 'status early' : 'status closed';
+          const penaltyText = earlyBuzz && state.earlyBuzzPenaltySeconds > 0 ? ` · Sperre: ${formatNumber(state.earlyBuzzPenaltySeconds)} s` : '';
+          $('playerResult').textContent = me ? `${playerSummary(me)}${penaltyText}` : '';
         } else {
           buzzer.disabled = true;
-          status.textContent = 'Warte auf den Host …';
+          status.textContent = 'Runde ist gesperrt';
           status.className = 'status closed';
-          $('playerResult').textContent = me ? `Punkte: ${formatNumber(me.score)}` : '';
+          $('playerResult').textContent = me ? playerSummary(me) : '';
         }
       }
 
@@ -341,6 +433,37 @@
         $('hostStatus').className = state.roundOpen ? 'status open' : 'status closed';
         $('playerCount').textContent = state.players.length;
         $('pointValue').value = state.pointValue;
+        $('earlyPenalty').value = state.earlyBuzzPenaltySeconds;
+
+        $('teamTable').innerHTML = state.teams.length
+          ? state.teams.map(team => {
+              const members = state.players.filter(p => p.teamId === team.id).map(p => p.name);
+              return `
+                <tr>
+                  <td>
+                    <div class="player-actions">
+                      <input class="name-input" id="team-name-${cssSafe(team.id)}" value="${escapeAttribute(team.name)}" maxlength="30">
+                      <button class="small-button" onclick="renameTeam('${jsSafe(team.id)}')">Speichern</button>
+                    </div>
+                  </td>
+                  <td>${members.length ? members.map(escapeHtml).join(', ') : '<span class="small">Noch niemand</span>'}</td>
+                  <td class="score">${formatNumber(team.score)}</td>
+                  <td>
+                    <div class="player-actions">
+                      <button class="small-button score-button" onclick="changeTeamScore('${jsSafe(team.id)}', 1)">+${formatNumber(state.pointValue)}</button>
+                      <button class="small-button score-button" onclick="changeTeamScore('${jsSafe(team.id)}', -1)">−${formatNumber(state.pointValue)}</button>
+                    </div>
+                  </td>
+                  <td>
+                    <div class="player-actions">
+                      <input class="inline-input" id="team-score-${cssSafe(team.id)}" type="number" step="1" value="${team.score}">
+                      <button class="small-button" onclick="setTeamScore('${jsSafe(team.id)}')">Setzen</button>
+                    </div>
+                  </td>
+                  <td><button class="small-button host-reset" onclick="deleteTeam('${jsSafe(team.id)}')">Löschen</button></td>
+                </tr>`;
+            }).join('')
+          : '<tr><td colspan="6" class="small">Noch keine Teams angelegt.</td></tr>';
 
         $('playerTable').innerHTML = state.players.length
           ? state.players.map(p => `
@@ -350,6 +473,12 @@
                   <input class="name-input" id="name-${cssSafe(p.id)}" value="${escapeAttribute(p.name)}" maxlength="30">
                   <button class="small-button" onclick="renamePlayer('${jsSafe(p.id)}')">Name speichern</button>
                 </div>
+              </td>
+              <td>
+                <select class="inline-input" style="width:150px" onchange="setPlayerTeam('${jsSafe(p.id)}', this.value)">
+                  <option value="">Kein Team</option>
+                  ${state.teams.map(team => `<option value="${escapeAttribute(team.id)}" ${p.teamId === team.id ? 'selected' : ''}>${escapeHtml(team.name)}</option>`).join('')}
+                </select>
               </td>
               <td class="score">${formatNumber(p.score)}</td>
               <td>
@@ -365,14 +494,26 @@
                 </div>
               </td>
             </tr>`).join('')
-          : '<tr><td colspan="4" class="small">Noch niemand verbunden.</td></tr>';
+          : '<tr><td colspan="5" class="small">Noch niemand verbunden.</td></tr>';
+
+        $('earlyBuzzTable').innerHTML = state.earlyBuzzes.length
+          ? state.earlyBuzzes.map(b => {
+              const player = state.players.find(p => p.id === b.socketId);
+              const remaining = Math.max(0, (player?.lockedUntil || b.lockedUntil || 0) - Date.now());
+              const statusText = remaining > 0
+                ? `ZU FRÜH · noch ${(remaining / 1000).toFixed(1)} s gesperrt`
+                : (state.earlyBuzzPenaltySeconds > 0 ? 'ZU FRÜH · Sperre abgelaufen' : 'ZU FRÜH');
+              const teamName = teamNameFor(b.teamId);
+              return `<tr><td>${escapeHtml(b.name)}${teamName ? ` <span class="small">(${escapeHtml(teamName)})</span>` : ''}</td><td class="early"><strong>${statusText}</strong></td></tr>`;
+            }).join('')
+          : '<tr><td colspan="2" class="small">Noch kein Frühstart.</td></tr>';
 
         const first = state.buzzes[0]?.timeMs ?? 0;
         $('buzzTable').innerHTML = state.buzzes.length
           ? state.buzzes.map((b, i) => `
             <tr>
               <td class="${i === 0 ? 'winner' : ''}">${i + 1}</td>
-              <td>${escapeHtml(b.name)}</td>
+              <td>${escapeHtml(b.name)}${teamNameFor(b.teamId) ? ` <span class="small">(${escapeHtml(teamNameFor(b.teamId))})</span>` : ''}</td>
               <td>${seconds(b.timeMs)}</td>
               <td>${i === 0 ? '—' : '+' + seconds(b.timeMs - first)}</td>
             </tr>`).join('')
@@ -394,6 +535,39 @@
       if (input) socket.emit('host-set-score', { id, score: input.value });
     }
 
+    function setPlayerTeam(id, teamId) {
+      socket.emit('host-set-player-team', { id, teamId });
+    }
+
+    function renameTeam(id) {
+      const input = document.getElementById(`team-name-${cssSafe(id)}`);
+      if (input) socket.emit('host-rename-team', { id, name: input.value });
+    }
+
+    function deleteTeam(id) {
+      if (confirm('Team wirklich löschen? Die Spieler bleiben verbunden und werden nur aus dem Team entfernt.')) {
+        socket.emit('host-delete-team', id);
+      }
+    }
+
+    function changeTeamScore(id, direction) {
+      socket.emit('host-change-team-score', { id, direction });
+    }
+
+    function setTeamScore(id) {
+      const input = document.getElementById(`team-score-${cssSafe(id)}`);
+      if (input) socket.emit('host-set-team-score', { id, score: input.value });
+    }
+
+    function teamNameFor(teamId) {
+      return state.teams.find(team => team.id === teamId)?.name || '';
+    }
+
+    function playerSummary(player) {
+      const team = teamNameFor(player.teamId);
+      return `Punkte: ${formatNumber(player.score)}${team ? ` · Team: ${team}` : ''}`;
+    }
+
     function formatNumber(value) {
       const n = Number(value);
       return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
@@ -410,6 +584,10 @@
     function cssSafe(str) {
       return String(str).replace(/[^a-zA-Z0-9_-]/g, '_');
     }
+
+    setInterval(() => {
+      if (role === 'player' || role === 'host') render();
+    }, 100);
 
     function jsSafe(str) {
       return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");

@@ -1,28 +1,23 @@
-# Online Buzzer
+# Online Buzzer – Update mit Frühstart & Teams
 
-Online-Buzzer für Quiz, Gameshows und Musikspiele.
+Dieses Update ergänzt die bestehende Buzzer-Webseite um:
 
-## Funktionen
+- Frühstart-Erkennung: Buzzern vor Rundenstart wird dem Host angezeigt.
+- Einstellbare Frühstart-Sperre von 0 bis 60 Sekunden.
+- Teamverwaltung im Host-Bereich.
+- Teams anlegen, umbenennen und löschen.
+- Spieler per Dropdown einem Team zuordnen.
+- Separate Teampunkte mit frei einstellbarem Punktewert (+/-) und direkter Punkteingabe.
+- Teamname wird bei Buzz-Reihenfolge und Frühstart angezeigt.
+- Spieler sehen ihr Team in ihrer eigenen Ansicht.
 
-- Spieler können per Mausklick oder Leertaste buzzern.
-- Buzz-Sound beim erfolgreichen Buzz; der Host hört ebenfalls neue Buzzes.
-- Serverseitige Reaktionszeitmessung, Anzeige in Sekunden.
-- Live-Reihenfolge der Buzzes.
-- Host kann Spielern Nicknamen geben bzw. ändern.
-- Punktestand pro Spieler.
-- Frei einstellbarer Punktewert pro Klick, z. B. +3/-3 oder +5/-5.
-- Punktestand kann zusätzlich direkt auf einen beliebigen Wert gesetzt werden.
-- Runde starten, Buzzer sperren und Runde zurücksetzen.
+## Update auf GitHub
 
-## Lokal starten
+Im bestehenden Repository diese Dateien ersetzen:
 
-1. Node.js installieren.
-2. Im Projektordner ein Terminal öffnen.
-3. `npm install`
-4. `npm start`
-5. `http://localhost:3000` öffnen.
+- `server.js`
+- `public/index.html`
 
-## Render
+Danach committen. Render sollte den neuen Commit automatisch deployen; andernfalls `Manual Deploy` → `Deploy latest commit`.
 
-Build Command: `npm install`  
-Start Command: `node server.js`
+Hinweis: Punkte, Teams und Zuordnungen werden aktuell im Arbeitsspeicher des Servers gehalten. Bei einem Neustart/Neu-Deploy von Render werden sie zurückgesetzt.

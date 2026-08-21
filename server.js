@@ -12,11 +12,23 @@ app.use(express.static(path.join(__dirname, 'public')));
 let roundOpen = false;
 let roundStart = null;
 let buzzes = [];
+let earlyBuzzes = [];
 let pointValue = 1;
+let earlyBuzzPenaltySeconds = 0;
 let connectedPlayers = new Map();
+let nextTeamId = 3;
+let teams = [
+  { id: 'team-1', name: 'Team 1', score: 0 },
+  { id: 'team-2', name: 'Team 2', score: 0 }
+];
 
-function cleanName(value) {
-  return String(value || '').trim().slice(0, 30);
+function cleanName(value, fallback = '') {
+  const result = String(value || '').trim().slice(0, 30);
+  return result || fallback;
+}
+
+function getTeam(teamId) {
+  return teams.find((team) => team.id === teamId);
 }
 
 function publicState() {
@@ -24,7 +36,10 @@ function publicState() {
     roundOpen,
     roundStart,
     buzzes,
+    earlyBuzzes,
     pointValue,
+    earlyBuzzPenaltySeconds,
+    teams,
     players: Array.from(connectedPlayers.values())
   };
 }
@@ -44,21 +59,54 @@ io.on('connection', (socket) => {
     connectedPlayers.set(socket.id, {
       id: socket.id,
       name: nameClean,
-      score: existing?.score ?? 0
+      score: existing?.score ?? 0,
+      teamId: existing?.teamId ?? '',
+      lockedUntil: existing?.lockedUntil ?? 0
     });
     broadcastState();
   });
 
   socket.on('buzz', () => {
-    if (!roundOpen || !roundStart) return;
     const player = connectedPlayers.get(socket.id);
     if (!player) return;
-    if (buzzes.some((b) => b.socketId === socket.id)) return;
 
     const now = Date.now();
+
+    // Vor dem Start der Runde zählt ein Buzz als Frühstart.
+    if (!roundOpen) {
+      if (roundStart !== null) return; // Nach dem Sperren einer laufenden Runde ignorieren.
+      if (earlyBuzzes.some((b) => b.socketId === socket.id)) return;
+
+      const penaltyMs = Math.round(earlyBuzzPenaltySeconds * 1000);
+      if (penaltyMs > 0) {
+        player.lockedUntil = Math.max(player.lockedUntil || 0, now + penaltyMs);
+      }
+
+      const earlyBuzz = {
+        socketId: socket.id,
+        name: player.name,
+        teamId: player.teamId || '',
+        serverTimestamp: now,
+        lockedUntil: player.lockedUntil || 0
+      };
+      earlyBuzzes.push(earlyBuzz);
+      socket.emit('early-buzz-confirmed', earlyBuzz);
+      io.emit('early-buzz-event', earlyBuzz);
+      broadcastState();
+      return;
+    }
+
+    if (!roundStart) return;
+    if ((player.lockedUntil || 0) > now) {
+      socket.emit('buzz-locked', { lockedUntil: player.lockedUntil });
+      return;
+    }
+    if (buzzes.some((b) => b.socketId === socket.id)) return;
+
     const buzz = {
       socketId: socket.id,
       name: player.name,
+      teamId: player.teamId || '',
       timeMs: now - roundStart,
       serverTimestamp: now
     };
@@ -87,6 +135,8 @@ io.on('connection', (socket) => {
     roundOpen = false;
     roundStart = null;
     buzzes = [];
+    earlyBuzzes = [];
+    for (const player of connectedPlayers.values()) player.lockedUntil = 0;
     broadcastState();
   });
 
@@ -100,6 +150,67 @@ io.on('connection', (socket) => {
     buzzes.forEach((buzz) => {
       if (buzz.socketId === player.id || buzz.name === oldName) buzz.name = nameClean;
     });
+    earlyBuzzes.forEach((buzz) => {
+      if (buzz.socketId === player.id || buzz.name === oldName) buzz.name = nameClean;
+    });
+    broadcastState();
+  });
+
+  socket.on('host-set-player-team', ({ id, teamId }) => {
+    const player = connectedPlayers.get(String(id || ''));
+    const nextTeamId = String(teamId || '');
+    if (!player) return;
+    if (nextTeamId && !getTeam(nextTeamId)) return;
+
+    player.teamId = nextTeamId;
+    buzzes.forEach((buzz) => {
+      if (buzz.socketId === player.id) buzz.teamId = nextTeamId;
+    });
+    earlyBuzzes.forEach((buzz) => {
+      if (buzz.socketId === player.id) buzz.teamId = nextTeamId;
+    });
+    broadcastState();
+  });
+
+  socket.on('host-add-team', (name) => {
+    if (teams.length >= 12) return;
+    const id = `team-${nextTeamId++}`;
+    teams.push({ id, name: cleanName(name, `Team ${teams.length + 1}`), score: 0 });
+    broadcastState();
+  });
+
+  socket.on('host-rename-team', ({ id, name }) => {
+    const team = getTeam(String(id || ''));
+    if (!team) return;
+    team.name = cleanName(name, team.name);
+    broadcastState();
+  });
+
+  socket.on('host-delete-team', (id) => {
+    const teamId = String(id || '');
+    if (!getTeam(teamId)) return;
+    teams = teams.filter((team) => team.id !== teamId);
+    for (const player of connectedPlayers.values()) {
+      if (player.teamId === teamId) player.teamId = '';
+    }
+    buzzes.forEach((buzz) => { if (buzz.teamId === teamId) buzz.teamId = ''; });
+    earlyBuzzes.forEach((buzz) => { if (buzz.teamId === teamId) buzz.teamId = ''; });
+    broadcastState();
+  });
+
+  socket.on('host-change-team-score', ({ id, direction }) => {
+    const team = getTeam(String(id || ''));
+    if (!team) return;
+    const sign = Number(direction) < 0 ? -1 : 1;
+    team.score += sign * pointValue;
+    broadcastState();
+  });
+
+  socket.on('host-set-team-score', ({ id, score }) => {
+    const team = getTeam(String(id || ''));
+    const parsed = Number(score);
+    if (!team || !Number.isFinite(parsed)) return;
+    team.score = Math.max(-999999, Math.min(999999, parsed));
     broadcastState();
   });
 
@@ -107,6 +218,13 @@ io.on('connection', (socket) => {
     const parsed = Number(value);
     if (!Number.isFinite(parsed)) return;
     pointValue = Math.max(0, Math.min(9999, Math.abs(parsed)));
+    broadcastState();
+  });
+
+  socket.on('host-set-early-penalty', (value) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return;
+    earlyBuzzPenaltySeconds = Math.max(0, Math.min(60, parsed));
     broadcastState();
   });
 
