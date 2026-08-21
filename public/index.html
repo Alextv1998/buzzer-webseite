@@ -585,8 +585,11 @@
       return String(str).replace(/[^a-zA-Z0-9_-]/g, '_');
     }
 
+    // Nur die Spieleransicht regelmäßig aktualisieren (z. B. für den Sperr-Countdown).
+    // Die Host-Ansicht wird ausschließlich bei echten Statusänderungen neu gerendert.
+    // So werden Eingabefelder beim Tippen nicht mehr alle 100 ms zurückgesetzt.
     setInterval(() => {
-      if (role === 'player' || role === 'host') render();
+      if (role === 'player') render();
     }, 100);
 
     function jsSafe(str) {
