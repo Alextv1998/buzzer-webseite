@@ -305,7 +305,7 @@
           <div class="points-panel"><label for="answerTimerSeconds">Antwortzeit:</label><input id="answerTimerSeconds" class="inline-input" type="number" min="1" max="120" step="0.5" value="5"><span>Sek.</span><button id="saveAnswerTimer" class="small-button">Übernehmen</button></div>
           <div id="answerTimerValue" class="answer-timer-big">Bereit</div>
           <div id="answerTimerWho" class="small">Noch niemand hat gebuzzert.</div>
-          <div class="controls" style="margin-top:10px"><button id="resetAnswerTimer" class="small-button">Timer zurücksetzen</button></div>
+          <div class="controls" style="margin-top:10px"><button id="restartAnswerTimer" class="small-button">⏱️ Zeit neu starten</button><button id="nextAnswerTimer" class="small-button">❌ Falsch → Nächster Spieler</button><button id="resetAnswerTimer" class="small-button">Timer zurücksetzen</button></div>
         </section>
 
         <section class="dash-card" data-card="soundboard" data-size="large">
@@ -459,6 +459,15 @@
         collapse.type='button'; collapse.className='panel-action collapse-panel-btn'; collapse.textContent='−'; collapse.title='Panel minimieren';
         collapse.addEventListener('click', () => setPanelCollapsed(card, !card.classList.contains('panel-collapsed')));
         tools.insertBefore(collapse, tools.firstChild);
+      }
+      if (card.dataset.origin && !tools.querySelector('.delete-panel-btn')) {
+        const del = document.createElement('button');
+        del.type='button'; del.className='panel-action delete-panel-btn'; del.textContent='🗑'; del.title='Diese Panel-Kopie endgültig löschen';
+        del.addEventListener('click', () => {
+          if (!confirm(`Kopie „${panelTitle(card)}“ endgültig löschen?`)) return;
+          card.remove(); refreshHiddenPanelSelect(); updateDashboardHeight(); saveDashboardLayout();
+        });
+        tools.insertBefore(del, tools.firstChild);
       }
       if (!tools.querySelector('.hide-panel-btn')) {
         const hide = document.createElement('button');
@@ -837,6 +846,8 @@
     $('setEarlyPenalty').onclick = () => socket.emit('host-set-early-penalty', $('earlyPenalty').value);
     $('saveAnswerTimer').onclick = () => socket.emit('host-set-answer-timer', { enabled: $('answerTimerEnabled').checked, seconds: $('answerTimerSeconds').value });
     $('answerTimerEnabled').addEventListener('change', () => socket.emit('host-set-answer-timer', { enabled: $('answerTimerEnabled').checked, seconds: $('answerTimerSeconds').value }));
+    $('restartAnswerTimer').onclick = () => socket.emit('host-restart-answer-timer');
+    $('nextAnswerTimer').onclick = () => socket.emit('host-next-answer-timer');
     $('resetAnswerTimer').onclick = () => socket.emit('host-reset-answer-timer');
     $('showPlayerTribune').addEventListener('change', e => socket.emit('host-set-player-tribune-display', e.target.checked));
     document.querySelectorAll('[data-sound]').forEach(btn => btn.addEventListener('click', () => { ensureAudio(); socket.emit('host-play-sound', { sound: btn.dataset.sound, share: $('soundSharePlayers').checked }); }));

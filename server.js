@@ -351,6 +351,30 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
+  socket.on('host-restart-answer-timer', () => {
+    if (!answerTimerEnabled) return;
+    // Gleiche antwortende Person bekommt die volle eingestellte Zeit erneut.
+    if (!answerTimerBuzzSocketId && buzzes.length) answerTimerBuzzSocketId = buzzes[0].socketId;
+    if (!answerTimerBuzzSocketId) return;
+    answerTimerStartedAt = Date.now();
+    broadcastState();
+  });
+
+  socket.on('host-next-answer-timer', () => {
+    if (!answerTimerEnabled || !buzzes.length) return;
+    const currentIndex = buzzes.findIndex((b) => b.socketId === answerTimerBuzzSocketId);
+    const nextIndex = currentIndex < 0 ? 0 : currentIndex + 1;
+    if (nextIndex >= buzzes.length) {
+      // Niemand mehr in der Buzz-Reihenfolge: Timer beenden, statt wieder bei #1 anzufangen.
+      answerTimerStartedAt = null;
+      answerTimerBuzzSocketId = '';
+    } else {
+      answerTimerBuzzSocketId = buzzes[nextIndex].socketId;
+      answerTimerStartedAt = Date.now();
+    }
+    broadcastState();
+  });
+
   socket.on('host-reset-answer-timer', () => {
     answerTimerStartedAt = null;
     answerTimerBuzzSocketId = '';

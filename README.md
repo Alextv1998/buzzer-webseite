@@ -1,12 +1,8 @@
-# #Musiklex Buzzer – Workspace Sync Fix
+# #Musiklex Buzzer – Timer & Panel-Kopien Update
 
-Dieses Update behebt die Synchronisation kopierter Panels in den frei benennbaren Tabs/Workspaces.
-
-## Behoben
-- Kopierte Panels spiegeln jetzt bei jedem State-Update den kompletten Inhalt des Original-Panels.
-- Dynamische Inhalte wie Spielerlisten, Teamlisten, Buzz-Reihenfolge, Timer und Punktestände bleiben synchron.
-- Eingaben in einer Panel-Kopie werden an das Original weitergereicht.
-- Buttons und Auswahlfelder in Kopien steuern dieselben Funktionen wie im Original.
-- Position, Größe und Tab der Kopie bleiben unabhängig vom Original.
-
-Für das Update genügt `public/index.html` zu ersetzen. `server.js` und `public/sounds` bleiben unverändert.
+Neu:
+- Antworttimer kann für dieselbe Person neu gestartet werden.
+- „Falsch → Nächster Spieler“ springt zur nächsten Person in der Buzz-Reihenfolge und startet die volle Antwortzeit neu.
+- Ist niemand mehr in der Reihenfolge, wird der Antworttimer beendet.
+- Panel-Kopien haben einen Papierkorb und können endgültig gelöscht werden.
+- Originalpanels können weiterhin nur ausgeblendet/minimiert, aber nicht gelöscht werden.
