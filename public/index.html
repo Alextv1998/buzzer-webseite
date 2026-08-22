@@ -190,6 +190,14 @@
     .dash-card table { margin-top:6px; }
     .dash-card .status { margin:8px 0; }
     .dash-note { color:var(--muted); font-size:13px; }
+    .workspace-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:14px 0 10px; padding:10px; border:1px solid rgba(255,255,255,.09); border-radius:12px; background:rgba(255,255,255,.025); }
+    .workspace-tabs { display:flex; gap:7px; flex-wrap:wrap; flex:1; min-width:0; }
+    .workspace-tab { padding:8px 13px; border-radius:9px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); color:var(--muted); font-weight:800; }
+    .workspace-tab.active { background:#ff7900; color:#111; border-color:#ff9a3d; }
+    .workspace-tools { display:flex; gap:7px; flex-wrap:wrap; }
+    .dash-card.workspace-off { display:none !important; }
+    .panel-action.copy-panel-btn, .panel-action.move-panel-btn { font-size:14px; }
+    .mirror-panel-badge { font-size:11px; color:var(--muted); font-weight:600; margin-left:6px; }
     @media (max-width: 700px) { .dashboard { min-height:1400px; } .dash-card, .dash-card[data-size] { width:calc(100% - 16px); } .layout-actions { width:100%; } }
 
 
@@ -262,6 +270,17 @@
           <button id="toggleLayoutLock" class="small-button">🔓 Layout sperren</button>
           <button id="resetLayout" class="small-button">Layout zurücksetzen</button>
           <div class="panel-manager"><select id="hiddenPanelSelect" aria-label="Ausgeblendete Panels"><option value="">Ausgeblendete Panels …</option></select><button id="restorePanel" class="small-button">Einblenden</button></div>
+        </div>
+      </div>
+
+      <div class="workspace-bar">
+        <div id="workspaceTabs" class="workspace-tabs"></div>
+        <div class="workspace-tools">
+          <button id="addWorkspace" class="small-button">＋ Tab</button>
+          <button id="renameWorkspace" class="small-button">Tab umbenennen</button>
+          <button id="deleteWorkspace" class="small-button">Tab löschen</button>
+          <button id="moveWorkspaceLeft" class="small-button" title="Tab nach links">←</button>
+          <button id="moveWorkspaceRight" class="small-button" title="Tab nach rechts">→</button>
         </div>
       </div>
 
@@ -376,6 +395,10 @@
     const sizeCycle = ['small','medium','large','wide','full'];
     let dashboardRestoring = true;
     let dashboardInitialized = false;
+    let workspaceTabs = [];
+    let activeWorkspaceId = '';
+    let mirrorCounter = 0;
+
 
     function panelTitle(card) {
       const h = card.querySelector('.dash-head h3');
@@ -386,9 +409,9 @@
       const sel = $('hiddenPanelSelect'); if (!sel) return;
       const previous = sel.value;
       sel.innerHTML = '<option value="">Ausgeblendete Panels …</option>';
-      document.querySelectorAll('#dashboard .dash-card.panel-hidden').forEach(card => {
+      document.querySelectorAll('#dashboard .dash-card.panel-hidden:not(.workspace-off)').forEach(card => {
         const o = document.createElement('option');
-        o.value = card.dataset.card; o.textContent = panelTitle(card); sel.appendChild(o);
+        o.value = card.dataset.instance || card.dataset.card; o.textContent = panelTitle(card); sel.appendChild(o);
       });
       if ([...sel.options].some(o => o.value === previous)) sel.value = previous;
       const restore = $('restorePanel'); if (restore) restore.disabled = sel.options.length <= 1;
@@ -419,6 +442,18 @@
 
     function installPanelControls(card) {
       const tools = card.querySelector('.dash-tools'); if (!tools) return;
+      if (!tools.querySelector('.move-panel-btn')) {
+        const moveTab = document.createElement('button');
+        moveTab.type='button'; moveTab.className='panel-action move-panel-btn'; moveTab.textContent='⇄'; moveTab.title='Panel in anderen Tab verschieben';
+        moveTab.addEventListener('click', () => choosePanelWorkspace(card, false));
+        tools.insertBefore(moveTab, tools.firstChild);
+      }
+      if (!tools.querySelector('.copy-panel-btn')) {
+        const copyTab = document.createElement('button');
+        copyTab.type='button'; copyTab.className='panel-action copy-panel-btn'; copyTab.textContent='⧉'; copyTab.title='Panel in einen Tab kopieren';
+        copyTab.addEventListener('click', () => choosePanelWorkspace(card, true));
+        tools.insertBefore(copyTab, tools.firstChild);
+      }
       if (!tools.querySelector('.collapse-panel-btn')) {
         const collapse = document.createElement('button');
         collapse.type='button'; collapse.className='panel-action collapse-panel-btn'; collapse.textContent='−'; collapse.title='Panel minimieren';
@@ -437,7 +472,7 @@
       const board = $('dashboard'); if (!board) return;
       const gap = 14, pad = 8;
       let x = pad, y = pad, rowH = 0;
-      [...board.querySelectorAll('.dash-card')].forEach(card => {
+      [...board.querySelectorAll('.dash-card:not(.workspace-off)')].forEach(card => {
         const w = card.offsetWidth || 360;
         if (x + w > board.clientWidth - pad && x > pad) { x = pad; y += rowH + gap; rowH = 0; }
         card.style.left = x + 'px'; card.style.top = y + 'px';
@@ -446,59 +481,68 @@
       updateDashboardHeight();
     }
 
+    function loadWorkspaceConfig() {
+      let cfg=null;
+      try { cfg=JSON.parse(localStorage.getItem('buzzer-workspaces-v1')||'null'); } catch(_) {}
+      if (!cfg || !Array.isArray(cfg.tabs) || !cfg.tabs.length) cfg={tabs:[{id:'main',name:'SHOW'}],active:'main'};
+      workspaceTabs=cfg.tabs.filter(t=>t&&t.id&&t.name).slice(0,20);
+      if(!workspaceTabs.length) workspaceTabs=[{id:'main',name:'SHOW'}];
+      activeWorkspaceId=workspaceTabs.some(t=>t.id===cfg.active)?cfg.active:workspaceTabs[0].id;
+    }
+    function saveWorkspaceConfig(){ localStorage.setItem('buzzer-workspaces-v1',JSON.stringify({tabs:workspaceTabs,active:activeWorkspaceId})); }
+    function renderWorkspaceTabs(){
+      const wrap=$('workspaceTabs'); if(!wrap) return; wrap.innerHTML='';
+      workspaceTabs.forEach(t=>{ const b=document.createElement('button'); b.type='button'; b.className='workspace-tab'+(t.id===activeWorkspaceId?' active':''); b.textContent=t.name; b.onclick=()=>switchWorkspace(t.id); wrap.appendChild(b); });
+    }
+    function switchWorkspace(id){
+      if(!workspaceTabs.some(t=>t.id===id)) return; activeWorkspaceId=id; saveWorkspaceConfig(); renderWorkspaceTabs();
+      document.querySelectorAll('#dashboard .dash-card').forEach(c=>c.classList.toggle('workspace-off',(c.dataset.tabId||workspaceTabs[0].id)!==id));
+      refreshHiddenPanelSelect(); updateDashboardHeight();
+    }
+    function askWorkspace(title){
+      const list=workspaceTabs.map((t,i)=>`${i+1}: ${t.name}`).join('\n');
+      const raw=prompt(`${title}\n\n${list}\n\nNummer eingeben:`); if(raw===null) return null;
+      const idx=parseInt(raw,10)-1; return workspaceTabs[idx]?.id||null;
+    }
+    function choosePanelWorkspace(card, copy){ const id=askWorkspace(copy?'Panel kopieren nach:':'Panel verschieben nach:'); if(!id) return; copy?duplicatePanel(card,id):movePanelToWorkspace(card,id); }
+    function movePanelToWorkspace(card,id){ card.dataset.tabId=id; card.style.left='8px'; card.style.top='8px'; saveDashboardLayout(); switchWorkspace(id); }
+    function duplicatePanel(source,id){
+      const clone=source.cloneNode(true); mirrorCounter++; const instance='copy-'+Date.now()+'-'+mirrorCounter;
+      clone.dataset.instance=instance; clone.dataset.tabId=id; clone.dataset.origin=source.dataset.origin||source.dataset.card; clone.classList.remove('panel-hidden','panel-collapsed','workspace-off','dragging');
+      clone.style.left='8px'; clone.style.top='8px'; clone.style.zIndex=''; clone.querySelectorAll('.panel-action').forEach(x=>x.remove());
+      const h=clone.querySelector('.dash-head h3'); if(h) h.insertAdjacentHTML('beforeend',' <span class="mirror-panel-badge">Kopie</span>');
+      rewriteMirrorIds(clone, source.dataset.origin||source.dataset.card);
+      $('dashboard').appendChild(clone); installPanelControls(clone); installCardInteraction(clone); syncMirrorPanel(clone); saveDashboardLayout(); switchWorkspace(id);
+    }
+    function rewriteMirrorIds(clone, originKey){
+      clone.querySelectorAll('[id]').forEach(el=>{ const old=el.id; el.dataset.mirrorTarget=old; el.id='mirror-'+clone.dataset.instance+'-'+old; });
+      clone.querySelectorAll('label[for]').forEach(l=>{ const old=l.getAttribute('for'); l.setAttribute('for','mirror-'+clone.dataset.instance+'-'+old); });
+      clone.addEventListener('click',e=>{ const el=e.target.closest('[data-mirror-target]'); if(!el||el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT') return; const target=$(el.dataset.mirrorTarget); if(target){ e.preventDefault(); target.click(); setTimeout(syncAllMirrors,30); } });
+      clone.addEventListener('change',e=>{ const el=e.target.closest('[data-mirror-target]'); if(!el) return; const target=$(el.dataset.mirrorTarget); if(target){ if('checked' in el) target.checked=el.checked; if('value' in el) target.value=el.value; target.dispatchEvent(new Event('change',{bubbles:true})); } });
+      clone.addEventListener('input',e=>{ const el=e.target.closest('[data-mirror-target]'); if(!el) return; const target=$(el.dataset.mirrorTarget); if(target&&'value' in el) target.value=el.value; });
+    }
+    function syncMirrorPanel(clone){
+      if(!clone||document.activeElement&&clone.contains(document.activeElement)) return;
+      clone.querySelectorAll('[data-mirror-target]').forEach(el=>{ const src=$(el.dataset.mirrorTarget); if(!src) return;
+        if(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT'){ if('checked' in el) el.checked=src.checked; if('value' in el) el.value=src.value; }
+        else if(el.tagName==='TBODY'||el.tagName==='DIV'||el.tagName==='SPAN'||el.tagName==='P'){ el.innerHTML=src.innerHTML; el.className=src.className; }
+      });
+    }
+    function syncAllMirrors(){ document.querySelectorAll('#dashboard .dash-card[data-origin]').forEach(syncMirrorPanel); }
+    function installCardInteraction(card){
+      const handle=card.querySelector('.drag-handle'); const sizeBtn=card.querySelector('.size-btn');
+      if(handle){ handle.removeAttribute('draggable'); handle.onpointerdown=e=>beginCardDrag(e,card); }
+      if(sizeBtn) sizeBtn.style.display='none';
+      if('ResizeObserver' in window&&!card._workspaceResizeObserver){ const ro=new ResizeObserver(()=>{ if(dashboardRestoring||layoutLocked||card.classList.contains('panel-collapsed')||card.classList.contains('panel-hidden')||card.classList.contains('workspace-off')) return; card.dataset.size=''; card.dataset.expandedHeight=String(card.offsetHeight); clampCard(card); updateDashboardHeight(); saveDashboardLayout(); }); ro.observe(card); card._workspaceResizeObserver=ro; }
+    }
     function initDashboardLayout() {
-      if (dashboardInitialized) return;
-      const board = $('dashboard'); if (!board) return;
-      dashboardInitialized = true;
-      let saved = {};
-      try { saved = JSON.parse(localStorage.getItem('buzzer-dashboard-layout-v2') || '{}'); } catch (_) {}
-      board.querySelectorAll('.dash-card').forEach(card => {
-        installPanelControls(card);
-        const item = saved[card.dataset.card];
-        if (item) {
-          card.dataset.size = item.size || card.dataset.size || 'medium';
-          if (Number(item.width) > 0) { card.style.width = Math.max(260, Number(item.width)) + 'px'; card.dataset.size = ''; }
-          if (Number(item.height) > 0) card.style.height = Math.max(150, Number(item.height)) + 'px';
-          card.style.left = Math.max(0, Number(item.x)||0) + 'px';
-          card.style.top = Math.max(0, Number(item.y)||0) + 'px';
-          if (Number(item.expandedHeight) > 0) card.dataset.expandedHeight = String(Number(item.expandedHeight));
-          if (item.collapsed) setPanelCollapsed(card, true, false);
-          if (item.hidden) setPanelHidden(card, true, false);
-        }
-        const handle = card.querySelector('.drag-handle');
-        const sizeBtn = card.querySelector('.size-btn');
-        if (handle) {
-          handle.removeAttribute('draggable');
-          handle.addEventListener('pointerdown', e => beginCardDrag(e, card));
-        }
-        if (sizeBtn) sizeBtn.style.display = 'none';
-        if ('ResizeObserver' in window) {
-          const ro = new ResizeObserver(() => {
-            if (dashboardRestoring || layoutLocked || card.classList.contains('panel-collapsed') || card.classList.contains('panel-hidden')) return;
-            card.dataset.size = '';
-            card.dataset.expandedHeight = String(card.offsetHeight);
-            clampCard(card); updateDashboardHeight(); saveDashboardLayout();
-          });
-          ro.observe(card);
-        }
-      });
-      if (!Object.keys(saved).length) requestAnimationFrame(() => { defaultDashboardPositions(); saveDashboardLayout(); });
-      else requestAnimationFrame(() => {
-        let bottom = 8;
-        board.querySelectorAll('.dash-card').forEach(card => {
-          if (saved[card.dataset.card]) {
-            clampCard(card);
-            bottom = Math.max(bottom, (parseFloat(card.style.top)||0) + card.offsetHeight + 14);
-          }
-        });
-        board.querySelectorAll('.dash-card').forEach(card => {
-          if (!saved[card.dataset.card]) { card.style.left = '8px'; card.style.top = bottom + 'px'; bottom += card.offsetHeight + 14; }
-        });
-        updateDashboardHeight(); saveDashboardLayout();
-      });
-      applyLayoutLock();
-      refreshHiddenPanelSelect();
-      requestAnimationFrame(() => requestAnimationFrame(() => { dashboardRestoring = false; }));
+      if(dashboardInitialized) return; const board=$('dashboard'); if(!board) return; dashboardInitialized=true; loadWorkspaceConfig();
+      let saved={}; try{saved=JSON.parse(localStorage.getItem('buzzer-dashboard-layout-v3')||'{}');}catch(_){}
+      const originals=[...board.querySelectorAll('.dash-card')]; originals.forEach(c=>{ c.dataset.instance=c.dataset.instance||c.dataset.card; c.dataset.tabId=saved[c.dataset.instance]?.tabId||workspaceTabs[0].id; installPanelControls(c); installCardInteraction(c); });
+      Object.entries(saved).filter(([k,v])=>v&&v.origin).forEach(([instance,item])=>{ const src=originals.find(c=>c.dataset.card===item.origin); if(!src) return; const clone=src.cloneNode(true); clone.dataset.instance=instance; clone.dataset.origin=item.origin; clone.dataset.tabId=item.tabId||workspaceTabs[0].id; clone.querySelectorAll('.panel-action').forEach(x=>x.remove()); const h=clone.querySelector('.dash-head h3'); if(h) h.insertAdjacentHTML('beforeend',' <span class="mirror-panel-badge">Kopie</span>'); rewriteMirrorIds(clone,item.origin); board.appendChild(clone); installPanelControls(clone); installCardInteraction(clone); });
+      board.querySelectorAll('.dash-card').forEach(card=>{ const item=saved[card.dataset.instance]; if(item){ if(Number(item.width)>0) card.style.width=Math.max(260,Number(item.width))+'px'; if(Number(item.height)>0) card.style.height=Math.max(150,Number(item.height))+'px'; card.style.left=Math.max(0,Number(item.x)||0)+'px'; card.style.top=Math.max(0,Number(item.y)||0)+'px'; if(Number(item.expandedHeight)>0) card.dataset.expandedHeight=String(Number(item.expandedHeight)); if(item.collapsed)setPanelCollapsed(card,true,false); if(item.hidden)setPanelHidden(card,true,false); } });
+      if(!Object.keys(saved).length) requestAnimationFrame(()=>{ defaultDashboardPositions(); saveDashboardLayout(); });
+      renderWorkspaceTabs(); switchWorkspace(activeWorkspaceId); applyLayoutLock(); refreshHiddenPanelSelect(); syncAllMirrors(); requestAnimationFrame(()=>requestAnimationFrame(()=>{dashboardRestoring=false;}));
     }
 
     function beginCardDrag(e, card) {
@@ -537,19 +581,13 @@
     function updateDashboardHeight() {
       const board = $('dashboard'); if (!board) return;
       let bottom = 0;
-      board.querySelectorAll('.dash-card').forEach(c => { if (!c.classList.contains('panel-hidden')) bottom = Math.max(bottom, (parseFloat(c.style.top)||0) + c.offsetHeight); });
+      board.querySelectorAll('.dash-card').forEach(c => { if (!c.classList.contains('panel-hidden') && !c.classList.contains('workspace-off')) bottom = Math.max(bottom, (parseFloat(c.style.top)||0) + c.offsetHeight); });
       board.style.minHeight = Math.max(700, bottom + 24) + 'px';
     }
     function saveDashboardLayout() {
-      const board = $('dashboard'); if (!board) return;
-      const data = {};
-      board.querySelectorAll('.dash-card').forEach(c => {
-        const collapsed = c.classList.contains('panel-collapsed');
-        const hidden = c.classList.contains('panel-hidden');
-        const expandedHeight = collapsed ? (Number(c.dataset.expandedHeight)||150) : c.offsetHeight;
-        data[c.dataset.card] = {x:parseFloat(c.style.left)||0,y:parseFloat(c.style.top)||0,size:c.dataset.size,width:c.offsetWidth,height:expandedHeight,expandedHeight,collapsed,hidden};
-      });
-      localStorage.setItem('buzzer-dashboard-layout-v2', JSON.stringify(data));
+      const board=$('dashboard'); if(!board) return; const data={};
+      board.querySelectorAll('.dash-card').forEach(c=>{ const collapsed=c.classList.contains('panel-collapsed'), hidden=c.classList.contains('panel-hidden'); const expandedHeight=collapsed?(Number(c.dataset.expandedHeight)||150):c.offsetHeight; data[c.dataset.instance||c.dataset.card]={origin:c.dataset.origin||null,tabId:c.dataset.tabId||workspaceTabs[0]?.id||'main',x:parseFloat(c.style.left)||0,y:parseFloat(c.style.top)||0,size:c.dataset.size,width:c.offsetWidth,height:expandedHeight,expandedHeight,collapsed,hidden}; });
+      localStorage.setItem('buzzer-dashboard-layout-v3',JSON.stringify(data)); saveWorkspaceConfig();
     }
     function applyLayoutLock() {
       const board = $('dashboard'); if (!board) return;
@@ -710,8 +748,13 @@
     $('closeRound').onclick = () => socket.emit('host-close');
     $('resetRound').onclick = () => socket.emit('host-reset');
     $('toggleLayoutLock').onclick = () => { layoutLocked = !layoutLocked; localStorage.setItem('buzzer-layout-locked', layoutLocked ? '1' : '0'); applyLayoutLock(); };
-    $('resetLayout').onclick = () => { localStorage.removeItem('buzzer-dashboard-layout-v2'); localStorage.removeItem('buzzer-dashboard-layout'); localStorage.removeItem('buzzer-layout-locked'); location.reload(); };
-    $('restorePanel').onclick = () => { const key=$('hiddenPanelSelect').value; if(!key) return; const card=document.querySelector('#dashboard .dash-card[data-card="'+CSS.escape(key)+'"]'); if(card){ setPanelHidden(card,false); card.scrollIntoView({behavior:'smooth',block:'nearest'}); } };
+    $('resetLayout').onclick = () => { localStorage.removeItem('buzzer-dashboard-layout-v3'); localStorage.removeItem('buzzer-workspaces-v1'); localStorage.removeItem('buzzer-dashboard-layout-v2'); localStorage.removeItem('buzzer-dashboard-layout'); localStorage.removeItem('buzzer-layout-locked'); location.reload(); };
+    $('addWorkspace').onclick=()=>{ const name=(prompt('Name des neuen Tabs:','NEUER TAB')||'').trim(); if(!name) return; const id='tab-'+Date.now(); workspaceTabs.push({id,name:name.slice(0,30)}); activeWorkspaceId=id; saveWorkspaceConfig(); renderWorkspaceTabs(); switchWorkspace(id); };
+    $('renameWorkspace').onclick=()=>{ const t=workspaceTabs.find(x=>x.id===activeWorkspaceId); if(!t)return; const name=(prompt('Neuer Tab-Name:',t.name)||'').trim(); if(!name)return; t.name=name.slice(0,30); saveWorkspaceConfig(); renderWorkspaceTabs(); };
+    $('deleteWorkspace').onclick=()=>{ if(workspaceTabs.length<=1){alert('Mindestens ein Tab muss bleiben.');return;} const t=workspaceTabs.find(x=>x.id===activeWorkspaceId); if(!confirm(`Tab „${t?.name||''}“ löschen? Panels darin werden in den ersten Tab verschoben.`))return; const fallback=workspaceTabs.find(x=>x.id!==activeWorkspaceId); document.querySelectorAll('#dashboard .dash-card').forEach(c=>{if(c.dataset.tabId===activeWorkspaceId)c.dataset.tabId=fallback.id;}); workspaceTabs=workspaceTabs.filter(x=>x.id!==activeWorkspaceId); activeWorkspaceId=fallback.id; saveDashboardLayout(); renderWorkspaceTabs(); switchWorkspace(activeWorkspaceId); };
+    $('moveWorkspaceLeft').onclick=()=>{ const i=workspaceTabs.findIndex(x=>x.id===activeWorkspaceId); if(i>0){[workspaceTabs[i-1],workspaceTabs[i]]=[workspaceTabs[i],workspaceTabs[i-1]];saveWorkspaceConfig();renderWorkspaceTabs();} };
+    $('moveWorkspaceRight').onclick=()=>{ const i=workspaceTabs.findIndex(x=>x.id===activeWorkspaceId); if(i>=0&&i<workspaceTabs.length-1){[workspaceTabs[i+1],workspaceTabs[i]]=[workspaceTabs[i],workspaceTabs[i+1]];saveWorkspaceConfig();renderWorkspaceTabs();} };
+    $('restorePanel').onclick = () => { const key=$('hiddenPanelSelect').value; if(!key) return; const card=document.querySelector('#dashboard .dash-card[data-instance="'+CSS.escape(key)+'"]'); if(card){ setPanelHidden(card,false); card.scrollIntoView({behavior:'smooth',block:'nearest'}); } };
     $('hiddenPanelSelect').onchange = () => { $('restorePanel').disabled = !$('hiddenPanelSelect').value; };
     $('setPointValue').onclick = () => socket.emit('host-set-point-value', $('pointValue').value);
     $('setEarlyPenalty').onclick = () => socket.emit('host-set-early-penalty', $('earlyPenalty').value);
@@ -767,6 +810,7 @@
       const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
       if (!myBuzz) buzzPending = false;
       render();
+      if (role === 'host' && dashboardInitialized) requestAnimationFrame(syncAllMirrors);
     });
 
     socket.on('buzz-confirmed', () => {

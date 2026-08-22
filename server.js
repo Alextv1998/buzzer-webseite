@@ -192,7 +192,11 @@ io.on('connection', (socket) => {
     earlyBuzzes = [];
     answerTimerStartedAt = null;
     answerTimerBuzzSocketId = '';
-    for (const player of connectedPlayers.values()) player.lockedUntil = 0;
+    for (const player of connectedPlayers.values()) {
+      player.lockedUntil = 0;
+      player.buzzerLocked = false;
+    }
+    for (const team of teams.values()) team.buzzerLocked = false;
     broadcastState();
   });
 
