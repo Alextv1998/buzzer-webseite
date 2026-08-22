@@ -177,6 +177,15 @@
     .layout-locked .dash-card { resize:none; }
     .layout-locked .dash-card::after { display:none; }
     .size-btn { padding:6px 9px; min-width:34px; border-radius:8px; }
+    .panel-action { padding:6px 9px; min-width:34px; border-radius:8px; background:rgba(255,255,255,.06); color:var(--muted); border:1px solid rgba(255,255,255,.08); }
+    .panel-action:hover { color:var(--text); background:rgba(255,255,255,.11); }
+    .dash-card.panel-collapsed { height:52px !important; min-height:52px; resize:none; overflow:hidden; }
+    .dash-card.panel-collapsed > :not(.dash-head) { display:none !important; }
+    .dash-card.panel-collapsed::after { display:none; }
+    .dash-card.panel-hidden { display:none !important; }
+    .panel-manager { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+    .panel-manager select { min-width:190px; width:auto; margin:0; padding:8px 10px; }
+    .layout-locked .panel-action { display:inline-flex; }
     .dash-card .points-panel { margin:8px 0; }
     .dash-card table { margin-top:6px; }
     .dash-card .status { margin:8px 0; }
@@ -252,6 +261,7 @@
         <div class="layout-actions">
           <button id="toggleLayoutLock" class="small-button">🔓 Layout sperren</button>
           <button id="resetLayout" class="small-button">Layout zurücksetzen</button>
+          <div class="panel-manager"><select id="hiddenPanelSelect" aria-label="Ausgeblendete Panels"><option value="">Ausgeblendete Panels …</option></select><button id="restorePanel" class="small-button">Einblenden</button></div>
         </div>
       </div>
 
@@ -366,6 +376,62 @@
     const sizeCycle = ['small','medium','large','wide','full'];
     let dashboardRestoring = true;
 
+    function panelTitle(card) {
+      const h = card.querySelector('.dash-head h3');
+      return h ? h.textContent.trim() : (card.dataset.card || 'Panel');
+    }
+
+    function refreshHiddenPanelSelect() {
+      const sel = $('hiddenPanelSelect'); if (!sel) return;
+      const previous = sel.value;
+      sel.innerHTML = '<option value="">Ausgeblendete Panels …</option>';
+      document.querySelectorAll('#dashboard .dash-card.panel-hidden').forEach(card => {
+        const o = document.createElement('option');
+        o.value = card.dataset.card; o.textContent = panelTitle(card); sel.appendChild(o);
+      });
+      if ([...sel.options].some(o => o.value === previous)) sel.value = previous;
+      const restore = $('restorePanel'); if (restore) restore.disabled = sel.options.length <= 1;
+    }
+
+    function setPanelCollapsed(card, collapsed, save=true) {
+      if (!card) return;
+      if (collapsed) {
+        if (!card.dataset.expandedHeight) card.dataset.expandedHeight = String(card.offsetHeight);
+        card.classList.add('panel-collapsed');
+      } else {
+        card.classList.remove('panel-collapsed');
+        const h = Number(card.dataset.expandedHeight);
+        if (h > 0) card.style.height = Math.max(150, h) + 'px';
+      }
+      const btn = card.querySelector('.collapse-panel-btn');
+      if (btn) { btn.textContent = collapsed ? '▢' : '−'; btn.title = collapsed ? 'Panel aufklappen' : 'Panel minimieren'; }
+      updateDashboardHeight();
+      if (save) saveDashboardLayout();
+    }
+
+    function setPanelHidden(card, hidden, save=true) {
+      if (!card) return;
+      card.classList.toggle('panel-hidden', hidden);
+      refreshHiddenPanelSelect(); updateDashboardHeight();
+      if (save) saveDashboardLayout();
+    }
+
+    function installPanelControls(card) {
+      const tools = card.querySelector('.dash-tools'); if (!tools) return;
+      if (!tools.querySelector('.collapse-panel-btn')) {
+        const collapse = document.createElement('button');
+        collapse.type='button'; collapse.className='panel-action collapse-panel-btn'; collapse.textContent='−'; collapse.title='Panel minimieren';
+        collapse.addEventListener('click', () => setPanelCollapsed(card, !card.classList.contains('panel-collapsed')));
+        tools.insertBefore(collapse, tools.firstChild);
+      }
+      if (!tools.querySelector('.hide-panel-btn')) {
+        const hide = document.createElement('button');
+        hide.type='button'; hide.className='panel-action hide-panel-btn'; hide.textContent='×'; hide.title='Panel ausblenden';
+        hide.addEventListener('click', () => setPanelHidden(card, true));
+        tools.insertBefore(hide, tools.children[1] || null);
+      }
+    }
+
     function defaultDashboardPositions() {
       const board = $('dashboard'); if (!board) return;
       const gap = 14, pad = 8;
@@ -384,6 +450,7 @@
       let saved = {};
       try { saved = JSON.parse(localStorage.getItem('buzzer-dashboard-layout-v2') || '{}'); } catch (_) {}
       board.querySelectorAll('.dash-card').forEach(card => {
+        installPanelControls(card);
         const item = saved[card.dataset.card];
         if (item) {
           card.dataset.size = item.size || card.dataset.size || 'medium';
@@ -391,6 +458,9 @@
           if (Number(item.height) > 0) card.style.height = Math.max(150, Number(item.height)) + 'px';
           card.style.left = Math.max(0, Number(item.x)||0) + 'px';
           card.style.top = Math.max(0, Number(item.y)||0) + 'px';
+          if (Number(item.expandedHeight) > 0) card.dataset.expandedHeight = String(Number(item.expandedHeight));
+          if (item.collapsed) setPanelCollapsed(card, true, false);
+          if (item.hidden) setPanelHidden(card, true, false);
         }
         const handle = card.querySelector('.drag-handle');
         const sizeBtn = card.querySelector('.size-btn');
@@ -401,8 +471,9 @@
         if (sizeBtn) sizeBtn.style.display = 'none';
         if ('ResizeObserver' in window) {
           const ro = new ResizeObserver(() => {
-            if (dashboardRestoring || layoutLocked) return;
+            if (dashboardRestoring || layoutLocked || card.classList.contains('panel-collapsed') || card.classList.contains('panel-hidden')) return;
             card.dataset.size = '';
+            card.dataset.expandedHeight = String(card.offsetHeight);
             clampCard(card); updateDashboardHeight(); saveDashboardLayout();
           });
           ro.observe(card);
@@ -423,6 +494,7 @@
         updateDashboardHeight(); saveDashboardLayout();
       });
       applyLayoutLock();
+      refreshHiddenPanelSelect();
       requestAnimationFrame(() => requestAnimationFrame(() => { dashboardRestoring = false; }));
     }
 
@@ -462,13 +534,18 @@
     function updateDashboardHeight() {
       const board = $('dashboard'); if (!board) return;
       let bottom = 0;
-      board.querySelectorAll('.dash-card').forEach(c => bottom = Math.max(bottom, (parseFloat(c.style.top)||0) + c.offsetHeight));
+      board.querySelectorAll('.dash-card').forEach(c => { if (!c.classList.contains('panel-hidden')) bottom = Math.max(bottom, (parseFloat(c.style.top)||0) + c.offsetHeight); });
       board.style.minHeight = Math.max(700, bottom + 24) + 'px';
     }
     function saveDashboardLayout() {
       const board = $('dashboard'); if (!board) return;
       const data = {};
-      board.querySelectorAll('.dash-card').forEach(c => data[c.dataset.card] = {x:parseFloat(c.style.left)||0,y:parseFloat(c.style.top)||0,size:c.dataset.size,width:c.offsetWidth,height:c.offsetHeight});
+      board.querySelectorAll('.dash-card').forEach(c => {
+        const collapsed = c.classList.contains('panel-collapsed');
+        const hidden = c.classList.contains('panel-hidden');
+        const expandedHeight = collapsed ? (Number(c.dataset.expandedHeight)||150) : c.offsetHeight;
+        data[c.dataset.card] = {x:parseFloat(c.style.left)||0,y:parseFloat(c.style.top)||0,size:c.dataset.size,width:c.offsetWidth,height:expandedHeight,expandedHeight,collapsed,hidden};
+      });
       localStorage.setItem('buzzer-dashboard-layout-v2', JSON.stringify(data));
     }
     function applyLayoutLock() {
@@ -625,6 +702,8 @@
     $('resetRound').onclick = () => socket.emit('host-reset');
     $('toggleLayoutLock').onclick = () => { layoutLocked = !layoutLocked; localStorage.setItem('buzzer-layout-locked', layoutLocked ? '1' : '0'); applyLayoutLock(); };
     $('resetLayout').onclick = () => { localStorage.removeItem('buzzer-dashboard-layout-v2'); localStorage.removeItem('buzzer-dashboard-layout'); localStorage.removeItem('buzzer-layout-locked'); location.reload(); };
+    $('restorePanel').onclick = () => { const key=$('hiddenPanelSelect').value; if(!key) return; const card=document.querySelector('#dashboard .dash-card[data-card="'+CSS.escape(key)+'"]'); if(card){ setPanelHidden(card,false); card.scrollIntoView({behavior:'smooth',block:'nearest'}); } };
+    $('hiddenPanelSelect').onchange = () => { $('restorePanel').disabled = !$('hiddenPanelSelect').value; };
     $('setPointValue').onclick = () => socket.emit('host-set-point-value', $('pointValue').value);
     $('setEarlyPenalty').onclick = () => socket.emit('host-set-early-penalty', $('earlyPenalty').value);
     $('saveAnswerTimer').onclick = () => socket.emit('host-set-answer-timer', { enabled: $('answerTimerEnabled').checked, seconds: $('answerTimerSeconds').value });
