@@ -1,14 +1,16 @@
-# #Musiklex Buzzer – Show-Control Update
+# #Musiklex Buzzer – eigene Sounds
 
-Neu in dieser Version:
+Dieses Update basiert auf der Show-Control-Version und enthält die hochgeladenen MP3s direkt im Soundboard.
 
-- Antworttimer: optional aktivierbar, Dauer frei einstellbar, startet automatisch beim ersten gültigen Buzz.
-- Soundboard: Richtig, Falsch, Ding, Applaus, Trommelwirbel, Zeit und Buzzer; optional auch bei allen Spielern abspielbar.
-- Team-Tribüne: Teams und sichtbare Spieler werden als farbige Tribüne dargestellt.
-- Tribüne kann optional auch in der Spieleransicht eingeblendet werden.
-- Einzelne Spieler können auf der Tribüne sichtbar/unsichtbar geschaltet werden.
-- Eigene Avatare können pro Spieler hochgeladen werden; Bilder werden im Browser verkleinert.
+Soundboard:
+- Richtige Antwort (eigene MP3)
+- Falsche Antwort (eigene MP3)
+- Nächste Fragerunde (eigene MP3)
+- Nächste Hauptrunde (eigene MP3)
+- Countdown 5 Sek. (eigene MP3)
+- Zeit! (bestehender Sound)
+- Buzzer (bestehender Sound)
 
-Für das bestehende GitHub/Render-Projekt `server.js` und `public/index.html` ersetzen und committen.
+Entfernt: Ding, Applaus, Trommelwirbel.
 
-Hinweis: Wie die übrigen Live-Daten werden hochgeladene Avatare aktuell nur im Arbeitsspeicher des Render-Servers gehalten. Nach einem Server-Neustart oder neuen Deploy müssen sie erneut hochgeladen werden.
+Wichtig beim GitHub-Upload: server.js, public/index.html UND den neuen Ordner public/sounds hochladen.

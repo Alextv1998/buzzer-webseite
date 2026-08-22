@@ -283,7 +283,7 @@
           <div class="dash-head"><h3>🔊 Soundboard</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <label class="message-target"><input id="soundSharePlayers" type="checkbox"><span class="target-stack"><strong>Auch bei Spielern abspielen</strong><span class="small">Ohne Haken hörst nur du den Sound.</span></span></label>
           <div class="soundboard-grid">
-            <button data-sound="correct">✅ Richtig</button><button data-sound="wrong">❌ Falsch</button><button data-sound="ding">🔔 Ding</button><button data-sound="applause">👏 Applaus</button><button data-sound="drumroll">🥁 Trommelwirbel</button><button data-sound="timeup">⏰ Zeit!</button><button data-sound="buzzer">🔴 Buzzer</button>
+            <button data-sound="correct">✅ Richtige Antwort</button><button data-sound="wrong">❌ Falsche Antwort</button><button data-sound="nextQuestion">❓ Nächste Fragerunde</button><button data-sound="nextMainRound">🎵 Nächste Hauptrunde</button><button data-sound="countdown5">5️⃣ Countdown 5 Sek.</button><button data-sound="timeup">⏰ Zeit!</button><button data-sound="buzzer">🔴 Buzzer</button>
           </div>
         </section>
 
@@ -533,8 +533,28 @@
     }
 
 
+    const customSoundFiles = {
+      correct: '/sounds/richtige-antwort.mp3',
+      wrong: '/sounds/falsche-antwort.mp3',
+      nextQuestion: '/sounds/naechste-fragerunde.mp3',
+      nextMainRound: '/sounds/naechste-hauptrunde.mp3',
+      countdown5: '/sounds/countdown-5-sek.mp3'
+    };
+    const customSoundPlayers = {};
+
     function playSoundboard(sound) {
       try {
+        if (customSoundFiles[sound]) {
+          if (!customSoundPlayers[sound]) {
+            customSoundPlayers[sound] = new Audio(customSoundFiles[sound]);
+            customSoundPlayers[sound].preload = 'auto';
+          }
+          const audio = customSoundPlayers[sound];
+          audio.pause();
+          audio.currentTime = 0;
+          audio.play().catch(() => {});
+          return;
+        }
         ensureAudio();
         if (!audioContext) return;
         const now = audioContext.currentTime;
@@ -544,18 +564,8 @@
           g.gain.setValueAtTime(gainValue, now+start); g.gain.exponentialRampToValueAtTime(.001, now+start+duration);
           o.connect(g); g.connect(audioContext.destination); o.start(now+start); o.stop(now+start+duration);
         };
-        if (sound==='correct') { tone(523,0,.18); tone(659,.12,.2); tone(784,.24,.28); }
-        else if (sound==='wrong') { tone(220,0,.28,'sawtooth',.13); tone(155,.18,.36,'sawtooth',.12); }
-        else if (sound==='ding') { tone(880,0,.45,'sine',.14); tone(1320,0,.35,'sine',.05); }
-        else if (sound==='timeup') { tone(660,0,.16,'square',.11); tone(660,.22,.16,'square',.11); tone(440,.44,.42,'square',.12); }
+        if (sound==='timeup') { tone(660,0,.16,'square',.11); tone(660,.22,.16,'square',.11); tone(440,.44,.42,'square',.12); }
         else if (sound==='buzzer') { playBuzzSound(); }
-        else if (sound==='drumroll') {
-          for(let i=0;i<18;i++){ const d=i*.055; tone(85+Math.random()*25,d,.045,'square',.035+i*.002); }
-          tone(180,1.02,.32,'square',.14);
-        } else if (sound==='applause') {
-          for(let i=0;i<30;i++){ const d=Math.random()*1.6; tone(120+Math.random()*900,d,.035,'square',.018); }
-          tone(784,1.5,.28,'sine',.07);
-        }
       } catch (_) {}
     }
 

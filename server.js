@@ -380,7 +380,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('host-play-sound', ({ sound, share }) => {
-    const allowed = new Set(['correct','wrong','ding','applause','drumroll','timeup','buzzer']);
+    const allowed = new Set(['correct','wrong','nextQuestion','nextMainRound','countdown5','timeup','buzzer']);
     const name = String(sound || '');
     if (!allowed.has(name)) return;
     if (share) io.emit('soundboard-play', { sound: name });
