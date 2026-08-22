@@ -375,6 +375,7 @@
     let layoutLocked = localStorage.getItem('buzzer-layout-locked') === '1';
     const sizeCycle = ['small','medium','large','wide','full'];
     let dashboardRestoring = true;
+    let dashboardInitialized = false;
 
     function panelTitle(card) {
       const h = card.querySelector('.dash-head h3');
@@ -446,7 +447,9 @@
     }
 
     function initDashboardLayout() {
+      if (dashboardInitialized) return;
       const board = $('dashboard'); if (!board) return;
+      dashboardInitialized = true;
       let saved = {};
       try { saved = JSON.parse(localStorage.getItem('buzzer-dashboard-layout-v2') || '{}'); } catch (_) {}
       board.querySelectorAll('.dash-card').forEach(card => {
@@ -647,7 +650,13 @@
     }
 
     $('playerRole').onclick = () => { role = 'player'; show(playerSetup); $('nameInput').focus(); };
-    $('hostRole').onclick = () => { role = 'host'; ensureAudio(); show(hostView); render(); };
+    $('hostRole').onclick = () => {
+      role = 'host';
+      ensureAudio();
+      show(hostView);
+      render();
+      requestAnimationFrame(() => requestAnimationFrame(() => initDashboardLayout()));
+    };
 
     document.querySelectorAll('.back').forEach(btn => btn.onclick = () => {
       role = null;
@@ -747,7 +756,9 @@
       $('gameInfoSaved').textContent = 'Anzeige geleert.';
     };
 
-    initDashboardLayout();
+    window.addEventListener('beforeunload', () => {
+      if (dashboardInitialized) saveDashboardLayout();
+    });
 
     socket.on('state', nextState => {
       state = nextState;
