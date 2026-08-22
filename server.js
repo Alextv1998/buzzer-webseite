@@ -18,6 +18,11 @@ let earlyBuzzPenaltySeconds = 0;
 let showPlayerBuzzDetails = false;
 let currentGameName = '';
 let currentGameRules = '';
+let answerTimerEnabled = false;
+let answerTimerSeconds = 5;
+let answerTimerStartedAt = null;
+let answerTimerBuzzSocketId = '';
+let showPlayerTribune = false;
 let connectedPlayers = new Map();
 let nextTeamId = 3;
 let teams = [
@@ -62,6 +67,12 @@ function publicState() {
     showPlayerBuzzDetails,
     currentGameName,
     currentGameRules,
+    answerTimerEnabled,
+    answerTimerSeconds,
+    answerTimerStartedAt,
+    answerTimerRemainingMs: answerTimerStartedAt ? Math.max(0, Math.round(answerTimerSeconds * 1000) - (now - answerTimerStartedAt)) : 0,
+    answerTimerBuzzSocketId,
+    showPlayerTribune,
     teams: publicTeams,
     players
   };
@@ -89,7 +100,9 @@ io.on('connection', (socket) => {
       score: existing?.score ?? 0,
       teamId: existing?.teamId ?? '',
       lockedUntil: existing?.lockedUntil ?? 0,
-      buzzerLocked: existing?.buzzerLocked ?? false
+      buzzerLocked: existing?.buzzerLocked ?? false,
+      avatar: existing?.avatar ?? '',
+      tribuneVisible: existing?.tribuneVisible ?? true
     });
     broadcastState();
   });
@@ -147,6 +160,12 @@ io.on('connection', (socket) => {
     buzzes.push(buzz);
     buzzes.sort((a, b) => a.serverTimestamp - b.serverTimestamp);
 
+    // Der Antworttimer startet beim ersten gültigen Buzz der Runde.
+    if (answerTimerEnabled && answerTimerStartedAt === null) {
+      answerTimerStartedAt = now;
+      answerTimerBuzzSocketId = socket.id;
+    }
+
     socket.emit('buzz-confirmed', buzz);
     io.emit('buzz-event', buzz);
     broadcastState();
@@ -156,6 +175,8 @@ io.on('connection', (socket) => {
     buzzes = [];
     roundStart = Date.now();
     roundOpen = true;
+    answerTimerStartedAt = null;
+    answerTimerBuzzSocketId = '';
     broadcastState();
   });
 
@@ -169,6 +190,8 @@ io.on('connection', (socket) => {
     roundStart = null;
     buzzes = [];
     earlyBuzzes = [];
+    answerTimerStartedAt = null;
+    answerTimerBuzzSocketId = '';
     for (const player of connectedPlayers.values()) player.lockedUntil = 0;
     broadcastState();
   });
@@ -310,6 +333,58 @@ io.on('connection', (socket) => {
     currentGameName = String(name || '').trim().slice(0, 80);
     currentGameRules = String(rules || '').trim().slice(0, 1500);
     broadcastState();
+  });
+
+
+  socket.on('host-set-answer-timer', ({ enabled, seconds }) => {
+    answerTimerEnabled = Boolean(enabled);
+    const parsed = Number(String(seconds).replace(',', '.'));
+    if (Number.isFinite(parsed)) answerTimerSeconds = Math.max(1, Math.min(120, parsed));
+    if (!answerTimerEnabled) {
+      answerTimerStartedAt = null;
+      answerTimerBuzzSocketId = '';
+    }
+    broadcastState();
+  });
+
+  socket.on('host-reset-answer-timer', () => {
+    answerTimerStartedAt = null;
+    answerTimerBuzzSocketId = '';
+    broadcastState();
+  });
+
+  socket.on('host-set-player-tribune-display', (value) => {
+    showPlayerTribune = Boolean(value);
+    broadcastState();
+  });
+
+  socket.on('host-set-player-tribune-visible', ({ id, visible }) => {
+    const player = connectedPlayers.get(String(id || ''));
+    if (!player) return;
+    player.tribuneVisible = Boolean(visible);
+    broadcastState();
+  });
+
+  socket.on('host-set-player-avatar', ({ id, dataUrl }) => {
+    const player = connectedPlayers.get(String(id || ''));
+    if (!player) return;
+    const value = String(dataUrl || '');
+    if (!value) {
+      player.avatar = '';
+      broadcastState();
+      return;
+    }
+    if (!/^data:image\/(?:png|jpeg|webp);base64,/i.test(value) || value.length > 700000) return;
+    player.avatar = value;
+    broadcastState();
+  });
+
+  socket.on('host-play-sound', ({ sound, share }) => {
+    const allowed = new Set(['correct','wrong','ding','applause','drumroll','timeup','buzzer']);
+    const name = String(sound || '');
+    if (!allowed.has(name)) return;
+    if (share) io.emit('soundboard-play', { sound: name });
+    else socket.emit('soundboard-play', { sound: name });
   });
 
   socket.on('host-set-point-value', (value) => {

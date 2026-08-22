@@ -183,6 +183,27 @@
     .dash-note { color:var(--muted); font-size:13px; }
     @media (max-width: 700px) { .dashboard { min-height:1400px; } .dash-card, .dash-card[data-size] { width:calc(100% - 16px); } .layout-actions { width:100%; } }
 
+
+    .answer-timer-player { margin:14px auto; max-width:420px; padding:14px 18px; border-radius:16px; text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); }
+    .answer-timer-player .timer-number, .answer-timer-big { font-size:clamp(34px,5vw,56px); line-height:1; font-weight:950; font-variant-numeric:tabular-nums; }
+    .answer-timer-big.warning, .answer-timer-player.warning { color:#ffb020; }
+    .answer-timer-big.danger, .answer-timer-player.danger { color:#ff493d; }
+    .soundboard-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:9px; margin-top:10px; }
+    .soundboard-grid button { padding:12px 10px; }
+    .tribune { display:flex; flex-direction:column; gap:14px; margin-top:12px; }
+    .tribune-team { border:2px solid var(--team-color,#777); border-radius:18px 18px 10px 10px; overflow:hidden; background:linear-gradient(180deg, color-mix(in srgb, var(--team-color,#777) 14%, transparent), rgba(255,255,255,.025)); }
+    .tribune-team-head { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid color-mix(in srgb, var(--team-color,#777) 45%, transparent); }
+    .tribune-team-head strong { color:var(--team-color); font-size:1.08rem; }
+    .tribune-rows { padding:12px; background:repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 38px, rgba(255,255,255,.045) 39px 42px); }
+    .tribune-players { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+    .tribune-player { width:92px; text-align:center; position:relative; }
+    .tribune-avatar { width:68px; height:68px; margin:0 auto 6px; border-radius:50%; object-fit:cover; display:grid; place-items:center; font-size:24px; font-weight:950; color:white; background:color-mix(in srgb, var(--team-color,#777) 70%, #111); border:4px solid var(--team-color,#777); box-shadow:0 7px 18px rgba(0,0,0,.35); }
+    .tribune-player-name { color:var(--team-color,#fff); font-weight:850; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tribune-score { font-size:12px; color:var(--muted); }
+    .avatar-controls { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .avatar-upload { width:150px; max-width:100%; padding:7px; font-size:12px; }
+    .tribune-player-view { margin-top:18px; padding:14px; border:1px solid rgba(255,255,255,.09); border-radius:16px; background:rgba(255,255,255,.025); }
+
     @media (max-width: 760px) {
       .desktop-table { display: block; overflow-x: auto; }
       th, td { white-space: nowrap; }
@@ -214,11 +235,13 @@
     <section id="playerView" class="card hidden">
       <h2 id="helloPlayer">Spieler</h2>
       <div id="playerGameInfo" class="game-info-player hidden"><h3 id="playerGameName"></h3><p id="playerGameRules" class="game-rules-text"></p></div>
+      <div id="playerAnswerTimer" class="answer-timer-player hidden"><div class="small">Antwortzeit <span id="playerAnsweringName"></span></div><div id="playerAnswerTimerValue" class="timer-number">0.0 s</div></div>
       <div id="playerStatus" class="status closed">Warte auf den Host …</div>
       <div id="playerMessages"></div>
       <button id="buzzer" class="buzzer" disabled>BUZZ!</button>
       <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
       <p id="playerResult" class="status"></p>
+      <div id="playerTribune" class="tribune-player-view hidden"><h3>🏟️ Tribüne</h3><div id="playerTribuneContent" class="tribune"></div></div>
       <div id="playerBuzzDetails" class="player-buzz-details hidden"><h3>Buzz-Reihenfolge</h3><div class="desktop-table"><table><thead><tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr></thead><tbody id="playerBuzzTable"></tbody></table></div></div>
       <button class="back">Zurück</button>
     </section>
@@ -245,6 +268,31 @@
           <div class="points-panel"><label for="earlyPenalty">Frühstart-Sperre:</label><input id="earlyPenalty" class="inline-input" type="number" min="0" max="60" step="0.5" value="0"><span>Sek.</span><button id="setEarlyPenalty" class="small-button">Übernehmen</button><span class="small" id="earlyPenaltySaved">0 Sekunden</span></div>
         </section>
 
+
+
+        <section class="dash-card" data-card="answertimer" data-size="medium">
+          <div class="dash-head"><h3>⏱️ Antworttimer</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label class="message-target"><input id="answerTimerEnabled" type="checkbox"><span class="target-stack"><strong>Antworttimer aktivieren</strong><span class="small">Startet automatisch beim ersten gültigen Buzz.</span></span></label>
+          <div class="points-panel"><label for="answerTimerSeconds">Antwortzeit:</label><input id="answerTimerSeconds" class="inline-input" type="number" min="1" max="120" step="0.5" value="5"><span>Sek.</span><button id="saveAnswerTimer" class="small-button">Übernehmen</button></div>
+          <div id="answerTimerValue" class="answer-timer-big">Bereit</div>
+          <div id="answerTimerWho" class="small">Noch niemand hat gebuzzert.</div>
+          <div class="controls" style="margin-top:10px"><button id="resetAnswerTimer" class="small-button">Timer zurücksetzen</button></div>
+        </section>
+
+        <section class="dash-card" data-card="soundboard" data-size="large">
+          <div class="dash-head"><h3>🔊 Soundboard</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label class="message-target"><input id="soundSharePlayers" type="checkbox"><span class="target-stack"><strong>Auch bei Spielern abspielen</strong><span class="small">Ohne Haken hörst nur du den Sound.</span></span></label>
+          <div class="soundboard-grid">
+            <button data-sound="correct">✅ Richtig</button><button data-sound="wrong">❌ Falsch</button><button data-sound="ding">🔔 Ding</button><button data-sound="applause">👏 Applaus</button><button data-sound="drumroll">🥁 Trommelwirbel</button><button data-sound="timeup">⏰ Zeit!</button><button data-sound="buzzer">🔴 Buzzer</button>
+          </div>
+        </section>
+
+        <section class="dash-card" data-card="tribune" data-size="wide">
+          <div class="dash-head"><h3>🏟️ Team-Tribüne</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label class="message-target"><input id="showPlayerTribune" type="checkbox"><span class="target-stack"><strong>Tribüne bei Spielern anzeigen</strong><span class="small">Die sichtbaren Spieler und Teams erscheinen auch in der Spieleransicht.</span></span></label>
+          <div id="hostTribune" class="tribune"></div>
+        </section>
+
         <section class="dash-card" data-card="teamboard" data-size="large">
           <div class="dash-head"><h3>🏆 Team-Anzeige</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <div id="teamBoard" class="team-board"></div>
@@ -258,7 +306,7 @@
 
         <section class="dash-card" data-card="players" data-size="wide">
           <div class="dash-head"><h3>🧑 Spieler <span class="small">(<span id="playerCount">0</span>)</span></h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
-          <div class="desktop-table"><table><thead><tr><th>Spieler / Nickname</th><th>Team</th><th>Punkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th>Buzzer</th></tr></thead><tbody id="playerTable"></tbody></table></div>
+          <div class="desktop-table"><table><thead><tr><th>Spieler / Nickname</th><th>Team</th><th>Punkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th>Tribüne / Avatar</th><th>Buzzer</th></tr></thead><tbody id="playerTable"></tbody></table></div>
         </section>
 
         <section class="dash-card" data-card="messages" data-size="large">
@@ -309,9 +357,10 @@
     let playerSocketId = '';
     let buzzPending = false;
     let audioContext = null;
-    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, showPlayerBuzzDetails: false, currentGameName: '', currentGameRules: '', teams: [], players: [] };
+    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, showPlayerBuzzDetails: false, currentGameName: '', currentGameRules: '', answerTimerEnabled: false, answerTimerSeconds: 5, answerTimerStartedAt: null, answerTimerRemainingMs: 0, answerTimerBuzzSocketId: '', showPlayerTribune: false, teams: [], players: [] };
     let playerMessages = [];
     let stateReceivedAt = performance.now();
+    let timerStateReceivedAt = performance.now();
     let draggedTeamId = null;
     let layoutLocked = localStorage.getItem('buzzer-layout-locked') === '1';
     const sizeCycle = ['small','medium','large','wide','full'];
@@ -483,6 +532,33 @@
       } catch (_) {}
     }
 
+
+    function playSoundboard(sound) {
+      try {
+        ensureAudio();
+        if (!audioContext) return;
+        const now = audioContext.currentTime;
+        const tone = (freq, start, duration, type='sine', gainValue=.12) => {
+          const o=audioContext.createOscillator(), g=audioContext.createGain();
+          o.type=type; o.frequency.setValueAtTime(freq, now+start);
+          g.gain.setValueAtTime(gainValue, now+start); g.gain.exponentialRampToValueAtTime(.001, now+start+duration);
+          o.connect(g); g.connect(audioContext.destination); o.start(now+start); o.stop(now+start+duration);
+        };
+        if (sound==='correct') { tone(523,0,.18); tone(659,.12,.2); tone(784,.24,.28); }
+        else if (sound==='wrong') { tone(220,0,.28,'sawtooth',.13); tone(155,.18,.36,'sawtooth',.12); }
+        else if (sound==='ding') { tone(880,0,.45,'sine',.14); tone(1320,0,.35,'sine',.05); }
+        else if (sound==='timeup') { tone(660,0,.16,'square',.11); tone(660,.22,.16,'square',.11); tone(440,.44,.42,'square',.12); }
+        else if (sound==='buzzer') { playBuzzSound(); }
+        else if (sound==='drumroll') {
+          for(let i=0;i<18;i++){ const d=i*.055; tone(85+Math.random()*25,d,.045,'square',.035+i*.002); }
+          tone(180,1.02,.32,'square',.14);
+        } else if (sound==='applause') {
+          for(let i=0;i<30;i++){ const d=Math.random()*1.6; tone(120+Math.random()*900,d,.035,'square',.018); }
+          tone(784,1.5,.28,'sine',.07);
+        }
+      } catch (_) {}
+    }
+
     $('playerRole').onclick = () => { role = 'player'; show(playerSetup); $('nameInput').focus(); };
     $('hostRole').onclick = () => { role = 'host'; ensureAudio(); show(hostView); render(); };
 
@@ -541,6 +617,11 @@
     $('resetLayout').onclick = () => { localStorage.removeItem('buzzer-dashboard-layout-v2'); localStorage.removeItem('buzzer-dashboard-layout'); localStorage.removeItem('buzzer-layout-locked'); location.reload(); };
     $('setPointValue').onclick = () => socket.emit('host-set-point-value', $('pointValue').value);
     $('setEarlyPenalty').onclick = () => socket.emit('host-set-early-penalty', $('earlyPenalty').value);
+    $('saveAnswerTimer').onclick = () => socket.emit('host-set-answer-timer', { enabled: $('answerTimerEnabled').checked, seconds: $('answerTimerSeconds').value });
+    $('answerTimerEnabled').addEventListener('change', () => socket.emit('host-set-answer-timer', { enabled: $('answerTimerEnabled').checked, seconds: $('answerTimerSeconds').value }));
+    $('resetAnswerTimer').onclick = () => socket.emit('host-reset-answer-timer');
+    $('showPlayerTribune').addEventListener('change', e => socket.emit('host-set-player-tribune-display', e.target.checked));
+    document.querySelectorAll('[data-sound]').forEach(btn => btn.addEventListener('click', () => { ensureAudio(); socket.emit('host-play-sound', { sound: btn.dataset.sound, share: $('soundSharePlayers').checked }); }));
     $('addTeam').onclick = () => {
       socket.emit('host-add-team', $('newTeamName').value);
       $('newTeamName').value = '';
@@ -582,6 +663,7 @@
     socket.on('state', nextState => {
       state = nextState;
       stateReceivedAt = performance.now();
+      timerStateReceivedAt = performance.now();
       const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
       if (!myBuzz) buzzPending = false;
       render();
@@ -610,6 +692,10 @@
       playerMessages.unshift(payload);
       playerMessages = playerMessages.slice(0, 5);
       renderPlayerMessages();
+    });
+
+    socket.on('soundboard-play', payload => {
+      if (payload?.sound) playSoundboard(payload.sound);
     });
 
     socket.on('host-message-sent', info => {
@@ -661,6 +747,52 @@
       return `${(ms / 1000).toFixed(3)} s`;
     }
 
+
+    function initials(name) {
+      return String(name || '?').trim().split(/\s+/).slice(0,2).map(x => x[0] || '').join('').toUpperCase().slice(0,2) || '?';
+    }
+
+    function avatarMarkup(player, team) {
+      const color = team?.color || '#777777';
+      if (player?.avatar) return `<img class="tribune-avatar" style="--team-color:${escapeAttribute(color)}" src="${escapeAttribute(player.avatar)}" alt="Avatar von ${escapeAttribute(player.name)}">`;
+      return `<div class="tribune-avatar" style="--team-color:${escapeAttribute(color)}">${escapeHtml(initials(player?.name))}</div>`;
+    }
+
+    function buildTribune() {
+      const visible = state.players.filter(p => p.tribuneVisible !== false);
+      const groups = state.teams.map(team => ({ team, players: visible.filter(p => p.teamId === team.id) }));
+      const noTeam = visible.filter(p => !p.teamId);
+      if (noTeam.length) groups.push({ team: { id:'', name:'Ohne Team', color:'#9aa4b6', score:noTeam.reduce((a,p)=>a+(Number(p.score)||0),0) }, players:noTeam });
+      return groups.filter(g => g.players.length).map(({team,players}) => `<div class="tribune-team" style="--team-color:${escapeAttribute(team.color || '#777777')}"><div class="tribune-team-head"><strong>${escapeHtml(team.name)}</strong><span>${formatNumber(team.score)} Punkte</span></div><div class="tribune-rows"><div class="tribune-players">${players.map(p => `<div class="tribune-player">${avatarMarkup(p,team)}<div class="tribune-player-name" title="${escapeAttribute(p.name)}">${escapeHtml(p.name)}</div><div class="tribune-score">${formatNumber(p.score)} P.</div></div>`).join('')}</div></div></div>`).join('') || '<div class="small">Noch keine sichtbaren Spieler auf der Tribüne.</div>';
+    }
+
+    function answerTimerRemaining() {
+      if (!state.answerTimerEnabled || !state.answerTimerStartedAt) return null;
+      return Math.max(0, Number(state.answerTimerRemainingMs || 0) - (performance.now() - timerStateReceivedAt));
+    }
+
+    async function uploadAvatar(id, input) {
+      const file = input.files?.[0]; if (!file) return;
+      if (!file.type.startsWith('image/')) { alert('Bitte eine Bilddatei auswählen.'); input.value=''; return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const size=160, canvas=document.createElement('canvas'); canvas.width=size; canvas.height=size;
+          const ctx=canvas.getContext('2d');
+          const scale=Math.max(size/img.width,size/img.height), w=img.width*scale, h=img.height*scale;
+          ctx.drawImage(img,(size-w)/2,(size-h)/2,w,h);
+          socket.emit('host-set-player-avatar',{id,dataUrl:canvas.toDataURL('image/jpeg',.82)});
+          input.value='';
+        };
+        img.src=reader.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearAvatar(id) { socket.emit('host-set-player-avatar',{id,dataUrl:''}); }
+    function setTribuneVisible(id, visible) { socket.emit('host-set-player-tribune-visible',{id,visible}); }
+
     function render() {
       const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
       const me = state.players.find(p => p.id === socket.id);
@@ -683,6 +815,12 @@
         gameInfoBox.classList.toggle('hidden', !hasGameInfo);
         $('playerGameName').textContent = state.currentGameName || 'Aktuelles Spiel';
         $('playerGameRules').textContent = state.currentGameRules || '';
+        const timerBox=$('playerAnswerTimer'), timerRemaining=answerTimerRemaining();
+        const answeringPlayer=state.players.find(p=>p.id===state.answerTimerBuzzSocketId);
+        const showTimer=state.answerTimerEnabled && timerRemaining !== null;
+        timerBox.classList.toggle('hidden', !showTimer);
+        if(showTimer){ const sec=Math.max(0,timerRemaining/1000); $('playerAnswerTimerValue').textContent=`${sec.toFixed(1)} s`; $('playerAnsweringName').textContent=answeringPlayer ? `· ${answeringPlayer.name}` : ''; timerBox.classList.toggle('warning',sec<=3&&sec>1); timerBox.classList.toggle('danger',sec<=1); }
+        const playerTribune=$('playerTribune'); playerTribune.classList.toggle('hidden', !state.showPlayerTribune); if(state.showPlayerTribune) $('playerTribuneContent').innerHTML=buildTribune();
         const detailsBox = $('playerBuzzDetails');
         detailsBox.classList.toggle('hidden', !state.showPlayerBuzzDetails);
         if (state.showPlayerBuzzDetails) {
@@ -738,6 +876,12 @@
         $('earlyPenaltySaved').textContent = `Gespeichert: ${formatNumber(state.earlyBuzzPenaltySeconds)} Sekunden`;
         $('showPlayerBuzzDetails').checked = !!state.showPlayerBuzzDetails;
         $('playerDisplaySaved').textContent = state.showPlayerBuzzDetails ? 'Aktuell: eingeblendet' : 'Aktuell: ausgeblendet';
+        $('answerTimerEnabled').checked = !!state.answerTimerEnabled;
+        if(document.activeElement !== $('answerTimerSeconds')) $('answerTimerSeconds').value = state.answerTimerSeconds;
+        $('showPlayerTribune').checked = !!state.showPlayerTribune;
+        const hostTimerRemaining=answerTimerRemaining(); const answering=state.players.find(p=>p.id===state.answerTimerBuzzSocketId);
+        if(!state.answerTimerEnabled){ $('answerTimerValue').textContent='Aus'; $('answerTimerWho').textContent='Antworttimer ist deaktiviert.'; } else if(hostTimerRemaining===null){ $('answerTimerValue').textContent='Bereit'; $('answerTimerWho').textContent='Startet beim ersten Buzz.'; } else { const sec=Math.max(0,hostTimerRemaining/1000); $('answerTimerValue').textContent=`${sec.toFixed(1)} s`; $('answerTimerWho').textContent=answering ? `${answering.name} antwortet` : 'Antwort läuft'; }
+        $('hostTribune').innerHTML = buildTribune();
         if (document.activeElement !== $('currentGameName')) $('currentGameName').value = state.currentGameName || '';
         if (document.activeElement !== $('currentGameRules')) $('currentGameRules').value = state.currentGameRules || '';
 
@@ -801,9 +945,10 @@
                   <button class="small-button" onclick="setScore('${jsSafe(p.id)}')">Setzen</button>
                 </div>
               </td>
+              <td><div class="avatar-controls"><label class="small-button" style="cursor:pointer">${p.avatar ? '🖼️ Avatar ändern' : '🖼️ Avatar'}<input class="hidden" type="file" accept="image/*" onchange="uploadAvatar('${jsSafe(p.id)}', this)"></label>${p.avatar ? `<button class="small-button" onclick="clearAvatar('${jsSafe(p.id)}')">Entfernen</button>` : ''}<button class="small-button ${p.tribuneVisible === false ? 'lock-on' : 'lock-off'}" onclick="setTribuneVisible('${jsSafe(p.id)}', ${p.tribuneVisible === false ? 'true' : 'false'})">${p.tribuneVisible === false ? '🙈 Ausgeblendet' : '👁️ Sichtbar'}</button></div></td>
               <td><button class="small-button ${p.buzzerLocked ? 'lock-on' : 'lock-off'}" onclick="setPlayerBuzzerLock('${jsSafe(p.id)}', ${p.buzzerLocked ? 'false' : 'true'})">${p.buzzerLocked ? '🔒 Gesperrt' : '🔓 Offen'}</button></td>
             </tr>`).join('')
-          : '<tr><td colspan="6" class="small">Noch niemand verbunden.</td></tr>';
+          : '<tr><td colspan="7" class="small">Noch niemand verbunden.</td></tr>';
 
         $('earlyBuzzTable').innerHTML = state.earlyBuzzes.length
           ? state.earlyBuzzes.map(b => {
@@ -926,6 +1071,9 @@
     // So werden Eingabefelder beim Tippen nicht mehr alle 100 ms zurückgesetzt.
     setInterval(() => {
       if (role === 'player') render();
+      if (role === 'host' && state.answerTimerEnabled && state.answerTimerStartedAt) {
+        const remaining=answerTimerRemaining(); if(remaining!==null){ const sec=Math.max(0,remaining/1000), el=$('answerTimerValue'); el.textContent=`${sec.toFixed(1)} s`; el.classList.toggle('warning',sec<=3&&sec>1); el.classList.toggle('danger',sec<=1); }
+      }
     }, 100);
 
     function jsSafe(str) {
