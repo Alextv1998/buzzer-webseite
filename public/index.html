@@ -514,21 +514,98 @@
       rewriteMirrorIds(clone, source.dataset.origin||source.dataset.card);
       $('dashboard').appendChild(clone); installPanelControls(clone); installCardInteraction(clone); syncMirrorPanel(clone); saveDashboardLayout(); switchWorkspace(id);
     }
-    function rewriteMirrorIds(clone, originKey){
-      clone.querySelectorAll('[id]').forEach(el=>{ const old=el.id; el.dataset.mirrorTarget=old; el.id='mirror-'+clone.dataset.instance+'-'+old; });
-      clone.querySelectorAll('label[for]').forEach(l=>{ const old=l.getAttribute('for'); l.setAttribute('for','mirror-'+clone.dataset.instance+'-'+old); });
-      clone.addEventListener('click',e=>{ const el=e.target.closest('[data-mirror-target]'); if(!el||el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT') return; const target=$(el.dataset.mirrorTarget); if(target){ e.preventDefault(); target.click(); setTimeout(syncAllMirrors,30); } });
-      clone.addEventListener('change',e=>{ const el=e.target.closest('[data-mirror-target]'); if(!el) return; const target=$(el.dataset.mirrorTarget); if(target){ if('checked' in el) target.checked=el.checked; if('value' in el) target.value=el.value; target.dispatchEvent(new Event('change',{bubbles:true})); } });
-      clone.addEventListener('input',e=>{ const el=e.target.closest('[data-mirror-target]'); if(!el) return; const target=$(el.dataset.mirrorTarget); if(target&&'value' in el) target.value=el.value; });
+    function getMirrorSource(clone){
+      const origin = clone?.dataset?.origin;
+      if(!origin) return null;
+      return [...document.querySelectorAll('#dashboard .dash-card')].find(c => !c.dataset.origin && c.dataset.card === origin) || null;
     }
-    function syncMirrorPanel(clone){
-      if(!clone||document.activeElement&&clone.contains(document.activeElement)) return;
-      clone.querySelectorAll('[data-mirror-target]').forEach(el=>{ const src=$(el.dataset.mirrorTarget); if(!src) return;
-        if(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.tagName==='SELECT'){ if('checked' in el) el.checked=src.checked; if('value' in el) el.value=src.value; }
-        else if(el.tagName==='TBODY'||el.tagName==='DIV'||el.tagName==='SPAN'||el.tagName==='P'){ el.innerHTML=src.innerHTML; el.className=src.className; }
+
+    function prepareMirrorIds(clone){
+      if(!clone) return;
+      clone.querySelectorAll('[id]').forEach(el => {
+        const current = el.id;
+        if(current.startsWith('mirror-'+clone.dataset.instance+'-')) return;
+        el.dataset.mirrorTarget = current;
+        el.id = 'mirror-'+clone.dataset.instance+'-'+current;
+      });
+      clone.querySelectorAll('label[for]').forEach(label => {
+        const current = label.getAttribute('for') || '';
+        if(!current || current.startsWith('mirror-'+clone.dataset.instance+'-')) return;
+        label.setAttribute('for','mirror-'+clone.dataset.instance+'-'+current);
       });
     }
-    function syncAllMirrors(){ document.querySelectorAll('#dashboard .dash-card[data-origin]').forEach(syncMirrorPanel); }
+
+    function mirrorNodePath(el, card){
+      if(!el || !card || !card.contains(el) || el.closest('.dash-head')) return null;
+      let node = el;
+      const path = [];
+      while(node && node.parentElement && node.parentElement !== card){
+        const parent = node.parentElement;
+        path.unshift([...parent.children].indexOf(node));
+        node = parent;
+      }
+      if(!node || node.parentElement !== card) return null;
+      const tops = [...card.children].filter(c => !c.classList.contains('dash-head'));
+      const topIndex = tops.indexOf(node);
+      return topIndex < 0 ? null : [topIndex, ...path];
+    }
+
+    function mirrorNodeFromPath(card, path){
+      if(!card || !Array.isArray(path) || !path.length) return null;
+      const tops = [...card.children].filter(c => !c.classList.contains('dash-head'));
+      let node = tops[path[0]];
+      for(let i=1; node && i<path.length; i++) node = node.children[path[i]];
+      return node || null;
+    }
+
+    function proxyMirrorEvent(clone, e){
+      if(e.target.closest('.dash-head')) return;
+      const source = getMirrorSource(clone);
+      if(!source) return;
+      const path = mirrorNodePath(e.target, clone);
+      const target = mirrorNodeFromPath(source, path);
+      if(!target) return;
+
+      if(e.type === 'input' || e.type === 'change'){
+        if('value' in e.target && 'value' in target) target.value = e.target.value;
+        if('checked' in e.target && 'checked' in target) target.checked = e.target.checked;
+        target.dispatchEvent(new Event(e.type,{bubbles:true}));
+        return;
+      }
+
+      if(e.type === 'click'){
+        const tag = e.target.tagName;
+        if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'LABEL') return;
+        e.preventDefault();
+        target.click();
+        setTimeout(syncAllMirrors,30);
+      }
+    }
+
+    function rewriteMirrorIds(clone, originKey){
+      clone.dataset.origin = originKey;
+      prepareMirrorIds(clone);
+      if(clone._mirrorProxyInstalled) return;
+      clone._mirrorProxyInstalled = true;
+      clone.addEventListener('click', e => proxyMirrorEvent(clone,e), true);
+      clone.addEventListener('change', e => proxyMirrorEvent(clone,e), true);
+      clone.addEventListener('input', e => proxyMirrorEvent(clone,e), true);
+    }
+
+    function syncMirrorPanel(clone){
+      if(!clone || (document.activeElement && clone.contains(document.activeElement))) return;
+      const source = getMirrorSource(clone);
+      if(!source) return;
+
+      const cloneBody = [...clone.children].filter(c => !c.classList.contains('dash-head'));
+      cloneBody.forEach(c => c.remove());
+      [...source.children].filter(c => !c.classList.contains('dash-head')).forEach(c => clone.appendChild(c.cloneNode(true)));
+      prepareMirrorIds(clone);
+    }
+
+    function syncAllMirrors(){
+      document.querySelectorAll('#dashboard .dash-card[data-origin]').forEach(syncMirrorPanel);
+    }
     function installCardInteraction(card){
       const handle=card.querySelector('.drag-handle'); const sizeBtn=card.querySelector('.size-btn');
       if(handle){ handle.removeAttribute('draggable'); handle.onpointerdown=e=>beginCardDrag(e,card); }

@@ -1,11 +1,12 @@
-# #Musiklex Buzzer – Workspace/Tabs Update
+# #Musiklex Buzzer – Workspace Sync Fix
 
-Neu:
-- frei benennbare Tabs/Arbeitsflächen
-- Tabs erstellen, umbenennen, löschen und sortieren
-- Panels per ⇄ in andere Tabs verschieben
-- Panels per ⧉ in andere Tabs kopieren
-- Position, Größe, Minimierung, Ausblendung, Tabs und Kopien bleiben im Browser gespeichert
-- Runden-Reset hebt jetzt auch manuelle Spieler- und Team-Buzzersperren auf
+Dieses Update behebt die Synchronisation kopierter Panels in den frei benennbaren Tabs/Workspaces.
 
-Hinweis: Panel-Kopien spiegeln dieselben Live-Daten. Interaktionen in einer Kopie werden an das Original-Panel weitergereicht.
+## Behoben
+- Kopierte Panels spiegeln jetzt bei jedem State-Update den kompletten Inhalt des Original-Panels.
+- Dynamische Inhalte wie Spielerlisten, Teamlisten, Buzz-Reihenfolge, Timer und Punktestände bleiben synchron.
+- Eingaben in einer Panel-Kopie werden an das Original weitergereicht.
+- Buttons und Auswahlfelder in Kopien steuern dieselben Funktionen wie im Original.
+- Position, Größe und Tab der Kopie bleiben unabhängig vom Original.
+
+Für das Update genügt `public/index.html` zu ersetzen. `server.js` und `public/sounds` bleiben unverändert.
