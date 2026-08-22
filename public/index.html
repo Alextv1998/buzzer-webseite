@@ -619,16 +619,16 @@
       const handle=card.querySelector('.drag-handle'); const sizeBtn=card.querySelector('.size-btn');
       if(handle){ handle.removeAttribute('draggable'); handle.onpointerdown=e=>beginCardDrag(e,card); }
       if(sizeBtn) sizeBtn.style.display='none';
-      if('ResizeObserver' in window&&!card._workspaceResizeObserver){ const ro=new ResizeObserver(()=>{ if(dashboardRestoring||layoutLocked||card.classList.contains('panel-collapsed')||card.classList.contains('panel-hidden')||card.classList.contains('workspace-off')) return; card.dataset.size=''; card.dataset.expandedHeight=String(card.offsetHeight); clampCard(card); updateDashboardHeight(); saveDashboardLayout(); }); ro.observe(card); card._workspaceResizeObserver=ro; }
+      if('ResizeObserver' in window&&!card._workspaceResizeObserver){ const ro=new ResizeObserver(entries=>{ if(dashboardRestoring||layoutLocked||card.classList.contains('panel-collapsed')||card.classList.contains('panel-hidden')||card.classList.contains('workspace-off')) return; const r=entries[0]?.contentRect; const w=Math.round(card.getBoundingClientRect().width); const h=Math.round(card.getBoundingClientRect().height); if(w>0) card.dataset.savedWidth=String(w); if(h>0){ card.dataset.savedHeight=String(h); card.dataset.expandedHeight=String(h); } card.dataset.size=''; clampCard(card); updateDashboardHeight(); saveDashboardLayout(); }); ro.observe(card); card._workspaceResizeObserver=ro; }
     }
     function initDashboardLayout() {
       if(dashboardInitialized) return; const board=$('dashboard'); if(!board) return; dashboardInitialized=true; loadWorkspaceConfig();
       let saved={}; try{saved=JSON.parse(localStorage.getItem('buzzer-dashboard-layout-v3')||'{}');}catch(_){}
       const originals=[...board.querySelectorAll('.dash-card')]; originals.forEach(c=>{ c.dataset.instance=c.dataset.instance||c.dataset.card; c.dataset.tabId=saved[c.dataset.instance]?.tabId||workspaceTabs[0].id; installPanelControls(c); installCardInteraction(c); });
       Object.entries(saved).filter(([k,v])=>v&&v.origin).forEach(([instance,item])=>{ const src=originals.find(c=>c.dataset.card===item.origin); if(!src) return; const clone=src.cloneNode(true); clone.dataset.instance=instance; clone.dataset.origin=item.origin; clone.dataset.tabId=item.tabId||workspaceTabs[0].id; clone.querySelectorAll('.panel-action').forEach(x=>x.remove()); const h=clone.querySelector('.dash-head h3'); if(h) h.insertAdjacentHTML('beforeend',' <span class="mirror-panel-badge">Kopie</span>'); rewriteMirrorIds(clone,item.origin); board.appendChild(clone); installPanelControls(clone); installCardInteraction(clone); });
-      board.querySelectorAll('.dash-card').forEach(card=>{ const item=saved[card.dataset.instance]; if(item){ if(Number(item.width)>0) card.style.width=Math.max(260,Number(item.width))+'px'; if(Number(item.height)>0) card.style.height=Math.max(150,Number(item.height))+'px'; card.style.left=Math.max(0,Number(item.x)||0)+'px'; card.style.top=Math.max(0,Number(item.y)||0)+'px'; if(Number(item.expandedHeight)>0) card.dataset.expandedHeight=String(Number(item.expandedHeight)); if(item.collapsed)setPanelCollapsed(card,true,false); if(item.hidden)setPanelHidden(card,true,false); } });
+      board.querySelectorAll('.dash-card').forEach(card=>{ const item=saved[card.dataset.instance]; if(item){ const sw=Math.max(260,Number(item.width)||0); const sh=Math.max(150,Number(item.height)||0); if(sw>0){ card.style.width=sw+'px'; card.dataset.savedWidth=String(sw); } if(sh>0){ card.style.height=sh+'px'; card.dataset.savedHeight=String(sh); } card.style.left=Math.max(0,Number(item.x)||0)+'px'; card.style.top=Math.max(0,Number(item.y)||0)+'px'; if(Number(item.expandedHeight)>0) card.dataset.expandedHeight=String(Number(item.expandedHeight)); if(item.collapsed)setPanelCollapsed(card,true,false); if(item.hidden)setPanelHidden(card,true,false); } });
       if(!Object.keys(saved).length) requestAnimationFrame(()=>{ defaultDashboardPositions(); saveDashboardLayout(); });
-      renderWorkspaceTabs(); switchWorkspace(activeWorkspaceId); applyLayoutLock(); refreshHiddenPanelSelect(); syncAllMirrors(); requestAnimationFrame(()=>requestAnimationFrame(()=>{dashboardRestoring=false;}));
+      renderWorkspaceTabs(); switchWorkspace(activeWorkspaceId); applyLayoutLock(); refreshHiddenPanelSelect(); syncAllMirrors(); requestAnimationFrame(()=>requestAnimationFrame(()=>{ dashboardRestoring=false; board.querySelectorAll('.dash-card').forEach(card=>{ const item=saved[card.dataset.instance]; if(!item) return; if(Number(item.width)>0) card.style.width=Math.max(260,Number(item.width))+'px'; if(Number(item.height)>0 && !card.classList.contains('panel-collapsed')) card.style.height=Math.max(150,Number(item.height))+'px'; clampCard(card); }); updateDashboardHeight(); }));
     }
 
     function beginCardDrag(e, card) {
@@ -672,7 +672,7 @@
     }
     function saveDashboardLayout() {
       const board=$('dashboard'); if(!board) return; const data={};
-      board.querySelectorAll('.dash-card').forEach(c=>{ const collapsed=c.classList.contains('panel-collapsed'), hidden=c.classList.contains('panel-hidden'); const expandedHeight=collapsed?(Number(c.dataset.expandedHeight)||150):c.offsetHeight; data[c.dataset.instance||c.dataset.card]={origin:c.dataset.origin||null,tabId:c.dataset.tabId||workspaceTabs[0]?.id||'main',x:parseFloat(c.style.left)||0,y:parseFloat(c.style.top)||0,size:c.dataset.size,width:c.offsetWidth,height:expandedHeight,expandedHeight,collapsed,hidden}; });
+      board.querySelectorAll('.dash-card').forEach(c=>{ const collapsed=c.classList.contains('panel-collapsed'), hidden=c.classList.contains('panel-hidden'); const expandedHeight=collapsed?(Number(c.dataset.expandedHeight)||150):c.offsetHeight; const liveWidth=Math.round(c.getBoundingClientRect().width)||Number(c.dataset.savedWidth)||c.offsetWidth; const liveHeight=collapsed?(Number(c.dataset.expandedHeight)||Number(c.dataset.savedHeight)||150):(Math.round(c.getBoundingClientRect().height)||Number(c.dataset.savedHeight)||c.offsetHeight); c.dataset.savedWidth=String(liveWidth); if(!collapsed)c.dataset.savedHeight=String(liveHeight); data[c.dataset.instance||c.dataset.card]={origin:c.dataset.origin||null,tabId:c.dataset.tabId||workspaceTabs[0]?.id||'main',x:parseFloat(c.style.left)||0,y:parseFloat(c.style.top)||0,size:c.dataset.size,width:liveWidth,height:collapsed?(Number(c.dataset.expandedHeight)||liveHeight):liveHeight,expandedHeight:collapsed?(Number(c.dataset.expandedHeight)||liveHeight):liveHeight,collapsed,hidden}; });
       localStorage.setItem('buzzer-dashboard-layout-v3',JSON.stringify(data)); saveWorkspaceConfig();
     }
     function applyLayoutLock() {
@@ -1313,6 +1313,7 @@
     }
   
     window.addEventListener('resize', () => { const b=$('dashboard'); if(b){ b.querySelectorAll('.dash-card').forEach(clampCard); updateDashboardHeight(); saveDashboardLayout(); } });
+    window.addEventListener('pagehide', () => { if(dashboardInitialized) saveDashboardLayout(); });
 </script>
 </body>
 </html>
