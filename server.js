@@ -1,11 +1,19 @@
 const express = require('express');
 const http = require('http');
 const path = require('path');
+const crypto = require('crypto');
 const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
+// SHA-256 von dem vereinbarten Host-Passwort. Das Klartext-Passwort steht dadurch
+// nicht im öffentlichen Repository. Für produktive Nutzung kann alternativ
+// HOST_PASSWORD_HASH als Render-Umgebungsvariable gesetzt werden.
+const DEFAULT_HOST_PASSWORD_HASH = '443f83e7519ed299c287829e475ac5827d73f528b1536d5e31ff51aaeb72c175';
+const HOST_PASSWORD_HASH = String(process.env.HOST_PASSWORD_HASH || DEFAULT_HOST_PASSWORD_HASH).toLowerCase();
+function passwordHash(value) { return crypto.createHash('sha256').update(String(value || ''), 'utf8').digest('hex'); }
 
 app.use(express.static(path.join(__dirname, 'public')));
 
@@ -87,6 +95,23 @@ function cleanMessage(value) {
 }
 
 io.on('connection', (socket) => {
+  socket.data.isHost = false;
+  socket.use(([event], next) => {
+    if (String(event || '').startsWith('host-') && event !== 'host-login' && !socket.data.isHost) {
+      socket.emit('host-auth-required');
+      return next(new Error('HOST_UNAUTHORIZED'));
+    }
+    next();
+  });
+
+  socket.on('host-login', (password) => {
+    const supplied = Buffer.from(passwordHash(password), 'utf8');
+    const expected = Buffer.from(HOST_PASSWORD_HASH, 'utf8');
+    const ok = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+    socket.data.isHost = ok;
+    socket.emit('host-auth-result', { ok });
+  });
+
   socket.emit('state', publicState());
 
   socket.on('join-player', (name) => {
@@ -443,6 +468,22 @@ io.on('connection', (socket) => {
       buzz.lockedUntil = player?.lockedUntil || 0;
     });
 
+    broadcastState();
+  });
+
+  socket.on('host-kick-player', ({ id }) => {
+    const playerId = String(id || '');
+    const player = connectedPlayers.get(playerId);
+    if (!player) return;
+
+    connectedPlayers.delete(playerId);
+    buzzes = buzzes.filter((buzz) => buzz.socketId !== playerId);
+    earlyBuzzes = earlyBuzzes.filter((buzz) => buzz.socketId !== playerId);
+    if (answerTimerBuzzSocketId === playerId) {
+      answerTimerBuzzSocketId = '';
+      answerTimerStartedAt = null;
+    }
+    io.to(playerId).emit('kicked');
     broadcastState();
   });
 
