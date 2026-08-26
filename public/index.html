@@ -185,6 +185,84 @@
     .chat-settings input { width:auto; margin:0; }
     .chat-channel-title { font-weight:900; margin-bottom:7px; }
     @media(max-width:760px){ .host-chat-layout{grid-template-columns:1fr}.host-chat-channels{max-height:150px}.chat-log{height:180px} }
+
+    /* Spieler: Buzzer + Chat nebeneinander, auf schmalen Fenstern untereinander */
+    .player-main-grid {
+      display:grid;
+      grid-template-columns:minmax(320px, 1fr) minmax(340px, 430px);
+      gap:20px;
+      align-items:start;
+      margin-top:14px;
+    }
+    .player-buzzer-zone {
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+    }
+    .player-main-grid .chat-shell {
+      margin:0;
+      width:100%;
+      min-width:0;
+    }
+    .player-main-grid .chat-log { height:300px; }
+    .player-chat-notice {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin:12px 0 0;
+      padding:11px 13px;
+      border:1px solid rgba(255,101,0,.55);
+      border-radius:12px;
+      background:rgba(255,101,0,.10);
+      color:#ffd0ad;
+      font-weight:800;
+      cursor:pointer;
+      animation:chatNoticePulse 1.2s ease-in-out infinite alternate;
+    }
+    .player-chat-notice .notice-count {
+      display:inline-grid;
+      place-items:center;
+      min-width:26px;
+      height:26px;
+      padding:0 7px;
+      border-radius:999px;
+      background:#d83d34;
+      color:#fff;
+      font-size:13px;
+      flex:0 0 auto;
+    }
+    @keyframes chatNoticePulse {
+      from { box-shadow:0 0 0 rgba(255,101,0,0); }
+      to { box-shadow:0 0 18px rgba(255,101,0,.26); }
+    }
+    .chat-head-title {
+      display:flex;
+      align-items:center;
+      gap:7px;
+      min-width:0;
+    }
+    .chat-head-unread {
+      display:inline-grid;
+      place-items:center;
+      min-width:21px;
+      height:21px;
+      padding:0 6px;
+      border-radius:999px;
+      background:#d83d34;
+      color:white;
+      font-size:11px;
+    }
+    .chat-shell.has-unread { border-color:rgba(255,101,0,.65); }
+    @media(max-width:900px) {
+      .player-main-grid { grid-template-columns:1fr; }
+      .player-main-grid .chat-shell { order:2; }
+      .player-buzzer-zone { order:1; }
+      .player-main-grid .chat-log { height:220px; }
+    }
+
     .host-login-error { color:#ff7b72; min-height:22px; margin-top:8px; font-weight:700; }
     .kick-button { background:#7d1c18 !important; color:#fff !important; }
 
@@ -301,22 +379,35 @@
       <div id="playerAnswerTimer" class="answer-timer-player hidden"><div class="small">Antwortzeit <span id="playerAnsweringName"></span></div><div id="playerAnswerTimerValue" class="timer-number">0.0 s</div></div>
       <div id="playerStatus" class="status closed">Warte auf den Host …</div>
       <div id="playerMessages" class="hidden"></div>
-      <div id="playerChatShell" class="chat-shell">
-        <div class="chat-head"><strong>Chat</strong><button id="togglePlayerChat" class="chat-collapse" type="button">Minimieren</button></div>
-        <div class="chat-body">
-          <div id="answerModeBox" class="answer-mode-box hidden"><strong>Antwortmodus aktiv</strong><div class="small">Deine Nachricht im Host-Chat wird als geheime Antwort markiert.</div></div>
-          <div class="chat-tabs">
-            <button id="playerChatHostTab" class="chat-tab active" type="button">Privat mit Host <span id="playerHostUnread" class="chat-badge hidden">0</span></button>
-            <button id="playerChatTeamTab" class="chat-tab" type="button">Teamchat <span id="playerTeamUnread" class="chat-badge hidden">0</span></button>
+      <div id="playerChatNotice" class="player-chat-notice hidden" role="status" aria-live="polite" tabindex="0">
+        <span id="playerChatNoticeText">Neue Nachricht</span>
+        <span id="playerChatNoticeCount" class="notice-count">1</span>
+      </div>
+
+      <div class="player-main-grid">
+        <div class="player-buzzer-zone">
+          <button id="buzzer" class="buzzer" disabled>BUZZ!</button>
+          <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
+          <p id="playerResult" class="status"></p>
+        </div>
+
+        <div id="playerChatShell" class="chat-shell">
+          <div class="chat-head">
+            <div class="chat-head-title"><strong>Chat</strong><span id="playerChatHeadUnread" class="chat-head-unread hidden">0</span></div>
+            <button id="togglePlayerChat" class="chat-collapse" type="button">Minimieren</button>
           </div>
-          <div id="playerChatDisabled" class="chat-disabled hidden"></div>
-          <div id="playerChatLog" class="chat-log"></div>
-          <div class="chat-compose"><input id="playerChatInput" maxlength="500" placeholder="Nachricht schreiben …"><button id="playerChatSend" type="button">Senden</button></div>
+          <div class="chat-body">
+            <div id="answerModeBox" class="answer-mode-box hidden"><strong>Antwortmodus aktiv</strong><div class="small">Deine Nachricht im Host-Chat wird als geheime Antwort markiert.</div></div>
+            <div class="chat-tabs">
+              <button id="playerChatHostTab" class="chat-tab active" type="button">Privat mit Host <span id="playerHostUnread" class="chat-badge hidden">0</span></button>
+              <button id="playerChatTeamTab" class="chat-tab" type="button">Teamchat <span id="playerTeamUnread" class="chat-badge hidden">0</span></button>
+            </div>
+            <div id="playerChatDisabled" class="chat-disabled hidden"></div>
+            <div id="playerChatLog" class="chat-log"></div>
+            <div class="chat-compose"><input id="playerChatInput" maxlength="500" placeholder="Nachricht schreiben …"><button id="playerChatSend" type="button">Senden</button></div>
+          </div>
         </div>
       </div>
-      <button id="buzzer" class="buzzer" disabled>BUZZ!</button>
-      <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
-      <p id="playerResult" class="status"></p>
       <div id="playerTribune" class="tribune-player-view hidden"><h3>🏟️ Tribüne</h3><div id="playerTribuneContent" class="tribune"></div></div>
       <div id="playerBuzzDetails" class="player-buzz-details hidden"><h3>Buzz-Reihenfolge</h3><div class="desktop-table"><table><thead><tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr></thead><tbody id="playerBuzzTable"></tbody></table></div></div>
       <button class="back">Zurück</button>
@@ -958,9 +1049,20 @@
     $('joinButton').onclick = join;
     $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
     $('buzzer').onclick = buzz;
-    $('togglePlayerChat').onclick = () => { const shell=$('playerChatShell'); shell.classList.toggle('collapsed'); $('togglePlayerChat').textContent=shell.classList.contains('collapsed')?'Chat öffnen':'Minimieren'; };
+    $('togglePlayerChat').onclick = () => {
+      const shell=$('playerChatShell');
+      shell.classList.toggle('collapsed');
+      $('togglePlayerChat').textContent=shell.classList.contains('collapsed')?'Chat öffnen':'Minimieren';
+      if(!shell.classList.contains('collapsed')) {
+        if(playerChatChannel==='host') playerChatUnread.host=0;
+        else playerChatUnread.team=0;
+        renderPlayerChat();
+      }
+    };
     $('playerChatHostTab').onclick = () => { playerChatChannel='host'; playerChatUnread.host=0; renderPlayerChat(); };
     $('playerChatTeamTab').onclick = () => { playerChatChannel='team'; playerChatUnread.team=0; renderPlayerChat(); };
+    $('playerChatNotice').onclick = () => openUnreadPlayerChat();
+    $('playerChatNotice').addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openUnreadPlayerChat(); } });
     $('playerChatSend').onclick = sendPlayerChatMessage;
     $('playerChatInput').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendPlayerChatMessage(); } });
 
@@ -1156,6 +1258,47 @@
       input.value='';
     }
 
+    function updatePlayerChatNotification() {
+      const total=(playerChatUnread.host||0)+(playerChatUnread.team||0);
+      const notice=$('playerChatNotice');
+      const headBadge=$('playerChatHeadUnread');
+
+      $('playerChatNoticeCount').textContent=total;
+      headBadge.textContent=total;
+      notice.classList.toggle('hidden',!total);
+      headBadge.classList.toggle('hidden',!total);
+      $('playerChatShell').classList.toggle('has-unread',!!total);
+
+      if(!total) return;
+
+      let text='Neue Nachricht';
+      if(playerChatUnread.host && playerChatUnread.team) {
+        text='Neue Privat- und Teamnachrichten';
+      } else if(playerChatUnread.host) {
+        text=playerChatUnread.host===1 ? 'Neue Nachricht vom Host' : `${playerChatUnread.host} neue Nachrichten vom Host`;
+      } else if(playerChatUnread.team) {
+        text=playerChatUnread.team===1 ? 'Neue Nachricht im Teamchat' : `${playerChatUnread.team} neue Nachrichten im Teamchat`;
+      }
+      $('playerChatNoticeText').textContent=text;
+    }
+
+    function openUnreadPlayerChat() {
+      const shell=$('playerChatShell');
+      shell.classList.remove('collapsed');
+      $('togglePlayerChat').textContent='Minimieren';
+
+      if(playerChatUnread.host) {
+        playerChatChannel='host';
+        playerChatUnread.host=0;
+      } else if(playerChatUnread.team) {
+        playerChatChannel='team';
+        playerChatUnread.team=0;
+      }
+
+      renderPlayerChat();
+      shell.scrollIntoView({behavior:'smooth',block:'nearest'});
+    }
+
     function renderPlayerChat() {
       const settings=playerChatState.settings||{privateEnabled:true,teamEnabled:true,answerModeEnabled:false};
       $('answerModeBox').classList.toggle('hidden',!settings.answerModeEnabled);
@@ -1164,6 +1307,7 @@
       $('playerChatTeamTab').disabled=!playerChatState.teamId;
       const hostBadge=$('playerHostUnread'); hostBadge.textContent=playerChatUnread.host; hostBadge.classList.toggle('hidden',!playerChatUnread.host);
       const teamBadge=$('playerTeamUnread'); teamBadge.textContent=playerChatUnread.team; teamBadge.classList.toggle('hidden',!playerChatUnread.team);
+      updatePlayerChatNotification();
       const enabled=playerChatChannel==='host'?settings.privateEnabled:(settings.teamEnabled&&!!playerChatState.teamId);
       const disabled=$('playerChatDisabled');
       disabled.classList.toggle('hidden',enabled);
