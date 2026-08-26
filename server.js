@@ -2,6 +2,7 @@ const express = require('express');
 const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
+const fs = require('fs');
 const { Server } = require('socket.io');
 
 const app = express();
@@ -32,16 +33,122 @@ let answerTimerStartedAt = null;
 let answerTimerBuzzSocketId = '';
 let showPlayerTribune = false;
 let connectedPlayers = new Map();
-let nextTeamId = 3;
-let teams = [
+const TEAM_STATE_FILE = path.join(__dirname, 'team-state.json');
+const DEFAULT_TEAMS = [
   { id: 'team-1', name: 'Team 1', score: 0, color: '#3b82f6', buzzerLocked: false },
   { id: 'team-2', name: 'Team 2', score: 0, color: '#ef4444', buzzerLocked: false }
 ];
+let nextTeamId = 3;
+let teams = DEFAULT_TEAMS.map(t => ({ ...t }));
+let savedPlayerTeamsByName = {};
+
+function sanitizeTeamSnapshot(rawTeams) {
+  if (!Array.isArray(rawTeams)) return [];
+  const seen = new Set();
+  return rawTeams.slice(0, 12).map((raw, index) => {
+    let id = String(raw?.id || `team-${index + 1}`).trim().slice(0, 40);
+    if (!id || seen.has(id)) id = `team-restored-${Date.now()}-${index}`;
+    seen.add(id);
+    const color = /^#[0-9a-fA-F]{6}$/.test(String(raw?.color || '')) ? String(raw.color) : '#8b5cf6';
+    return {
+      id,
+      name: cleanName(raw?.name, `Team ${index + 1}`),
+      score: 0,
+      color,
+      buzzerLocked: Boolean(raw?.buzzerLocked)
+    };
+  });
+}
+
+function recalcNextTeamId() {
+  const numeric = teams.map(t => /^team-(\d+)$/.exec(t.id)).filter(Boolean).map(m => Number(m[1]));
+  nextTeamId = Math.max(3, numeric.length ? Math.max(...numeric) + 1 : 3);
+}
+
+function saveTeamState() {
+  try {
+    const playerTeamsByName = { ...savedPlayerTeamsByName };
+    for (const player of connectedPlayers.values()) {
+      if (player.name) playerTeamsByName[player.name] = player.teamId || '';
+    }
+    fs.writeFileSync(TEAM_STATE_FILE, JSON.stringify({ version: 1, teams, playerTeamsByName }, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Team-State konnte nicht gespeichert werden:', err.message);
+  }
+}
+
+function loadTeamState() {
+  try {
+    if (!fs.existsSync(TEAM_STATE_FILE)) return;
+    const parsed = JSON.parse(fs.readFileSync(TEAM_STATE_FILE, 'utf8'));
+    const restored = sanitizeTeamSnapshot(parsed?.teams);
+    if (restored.length) teams = restored;
+    savedPlayerTeamsByName = parsed?.playerTeamsByName && typeof parsed.playerTeamsByName === 'object' ? parsed.playerTeamsByName : {};
+    recalcNextTeamId();
+  } catch (err) {
+    console.warn('Team-State konnte nicht geladen werden:', err.message);
+  }
+}
+
+
+// Integriertes Chat-System: Privat Spieler ↔ Host und Teamchat.
+let chatMessages = [];
+let chatSettings = {
+  privateEnabled: true,
+  teamEnabled: true,
+  answerModeEnabled: false
+};
+const MAX_CHAT_MESSAGES = 1000;
+
+function chatMessageId() {
+  return `${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+}
+
+function trimChatHistory() {
+  if (chatMessages.length > MAX_CHAT_MESSAGES) chatMessages = chatMessages.slice(-MAX_CHAT_MESSAGES);
+}
+
+function chatPayloadForPlayer(player) {
+  if (!player) return { settings: chatSettings, private: [], team: [], teamId: '' };
+  return {
+    settings: chatSettings,
+    private: chatMessages.filter(m => m.scope === 'private' && m.playerId === player.id),
+    team: player.teamId ? chatMessages.filter(m => m.scope === 'team' && m.teamId === player.teamId) : [],
+    teamId: player.teamId || ''
+  };
+}
+
+function chatPayloadForHost() {
+  return { settings: chatSettings, messages: chatMessages };
+}
+
+function emitChatStateToPlayer(socketId) {
+  const player = connectedPlayers.get(socketId);
+  if (player) io.to(socketId).emit('chat-state', chatPayloadForPlayer(player));
+}
+
+function emitChatStateToHostSocket(socket) {
+  if (socket?.data?.isHost) socket.emit('host-chat-state', chatPayloadForHost());
+}
+
+function broadcastChatStates() {
+  for (const player of connectedPlayers.values()) emitChatStateToPlayer(player.id);
+  for (const [, hostSocket] of io.sockets.sockets) {
+    if (hostSocket.data?.isHost) hostSocket.emit('host-chat-state', chatPayloadForHost());
+  }
+}
+
+function addChatMessage(message) {
+  chatMessages.push(message);
+  trimChatHistory();
+}
 
 function cleanName(value, fallback = '') {
   const result = String(value || '').trim().slice(0, 30);
   return result || fallback;
 }
+
+loadTeamState();
 
 function getTeam(teamId) {
   return teams.find((team) => team.id === teamId);
@@ -110,6 +217,7 @@ io.on('connection', (socket) => {
     const ok = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
     socket.data.isHost = ok;
     socket.emit('host-auth-result', { ok });
+    if (ok) emitChatStateToHostSocket(socket);
   });
 
   socket.emit('state', publicState());
@@ -123,13 +231,15 @@ io.on('connection', (socket) => {
       id: socket.id,
       name: nameClean,
       score: existing?.score ?? 0,
-      teamId: existing?.teamId ?? '',
+      teamId: existing?.teamId ?? (getTeam(savedPlayerTeamsByName[nameClean] || '') ? savedPlayerTeamsByName[nameClean] : ''),
       lockedUntil: existing?.lockedUntil ?? 0,
       buzzerLocked: existing?.buzzerLocked ?? false,
       avatar: existing?.avatar ?? '',
       tribuneVisible: existing?.tribuneVisible ?? true
     });
+    saveTeamState();
     broadcastState();
+    emitChatStateToPlayer(socket.id);
   });
 
   socket.on('buzz', () => {
@@ -241,6 +351,28 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
+  socket.on('host-restore-team-state', (snapshot) => {
+    const restored = sanitizeTeamSnapshot(snapshot?.teams);
+    if (!restored.length) return;
+    teams = restored;
+    recalcNextTeamId();
+    if (snapshot?.playerTeamsByName && typeof snapshot.playerTeamsByName === 'object') {
+      savedPlayerTeamsByName = {};
+      for (const [name, teamId] of Object.entries(snapshot.playerTeamsByName)) {
+        const cleanPlayerName = cleanName(name);
+        const cleanTeamId = String(teamId || '');
+        if (cleanPlayerName) savedPlayerTeamsByName[cleanPlayerName] = getTeam(cleanTeamId) ? cleanTeamId : '';
+      }
+    }
+    for (const player of connectedPlayers.values()) {
+      const desired = savedPlayerTeamsByName[player.name] || '';
+      player.teamId = getTeam(desired) ? desired : '';
+    }
+    saveTeamState();
+    broadcastState();
+    broadcastChatStates();
+  });
+
   socket.on('host-set-player-team', ({ id, teamId }) => {
     const player = connectedPlayers.get(String(id || ''));
     const nextTeamId = String(teamId || '');
@@ -248,6 +380,8 @@ io.on('connection', (socket) => {
     if (nextTeamId && !getTeam(nextTeamId)) return;
 
     player.teamId = nextTeamId;
+    savedPlayerTeamsByName[player.name] = nextTeamId;
+    saveTeamState();
     buzzes.forEach((buzz) => {
       if (buzz.socketId === player.id) buzz.teamId = nextTeamId;
     });
@@ -255,12 +389,14 @@ io.on('connection', (socket) => {
       if (buzz.socketId === player.id) buzz.teamId = nextTeamId;
     });
     broadcastState();
+    emitChatStateToPlayer(player.id);
   });
 
   socket.on('host-add-team', (name) => {
     if (teams.length >= 12) return;
     const id = `team-${nextTeamId++}`;
     teams.push({ id, name: cleanName(name, `Team ${teams.length + 1}`), score: 0, color: '#8b5cf6', buzzerLocked: false });
+    saveTeamState();
     broadcastState();
   });
 
@@ -268,6 +404,7 @@ io.on('connection', (socket) => {
     const team = getTeam(String(id || ''));
     if (!team) return;
     team.name = cleanName(name, team.name);
+    saveTeamState();
     broadcastState();
   });
 
@@ -280,7 +417,11 @@ io.on('connection', (socket) => {
     }
     buzzes.forEach((buzz) => { if (buzz.teamId === teamId) buzz.teamId = ''; });
     earlyBuzzes.forEach((buzz) => { if (buzz.teamId === teamId) buzz.teamId = ''; });
+    chatMessages = chatMessages.filter(m => !(m.scope === 'team' && m.teamId === teamId));
+    for (const [name, assigned] of Object.entries(savedPlayerTeamsByName)) if (assigned === teamId) savedPlayerTeamsByName[name] = '';
+    saveTeamState();
     broadcastState();
+    broadcastChatStates();
   });
 
 
@@ -289,6 +430,7 @@ io.on('connection', (socket) => {
     const clean = String(color || '').trim();
     if (!team || !/^#[0-9a-fA-F]{6}$/.test(clean)) return;
     team.color = clean;
+    saveTeamState();
     broadcastState();
   });
 
@@ -298,6 +440,7 @@ io.on('connection', (socket) => {
     const target = index + (Number(direction) < 0 ? -1 : 1);
     if (target < 0 || target >= teams.length) return;
     [teams[index], teams[target]] = [teams[target], teams[index]];
+    saveTeamState();
     broadcastState();
   });
 
@@ -309,6 +452,7 @@ io.on('connection', (socket) => {
     else {
       const to = teams.findIndex(t => t.id === String(beforeId));
       if (to < 0) teams.push(team); else teams.splice(to, 0, team);
+      saveTeamState();
     }
     broadcastState();
   });
@@ -325,7 +469,123 @@ io.on('connection', (socket) => {
     const team = getTeam(String(id || ''));
     if (!team) return;
     team.buzzerLocked = Boolean(locked);
+    saveTeamState();
     broadcastState();
+  });
+
+  socket.on('player-chat-send', ({ channel, message, isAnswer }) => {
+    const player = connectedPlayers.get(socket.id);
+    const text = cleanMessage(message);
+    if (!player || !text) return;
+
+    const mode = String(channel || 'host');
+    if (mode === 'host') {
+      if (!chatSettings.privateEnabled) {
+        socket.emit('chat-send-error', { message: 'Der Privatchat ist derzeit gesperrt.' });
+        return;
+      }
+      const item = {
+        id: chatMessageId(), scope: 'private', playerId: player.id,
+        senderType: 'player', senderId: player.id, senderName: player.name,
+        message: text, sentAt: Date.now(), isAnswer: Boolean(isAnswer && chatSettings.answerModeEnabled)
+      };
+      addChatMessage(item);
+      socket.emit('chat-message-sent', item);
+      emitChatStateToPlayer(player.id);
+      for (const [, hostSocket] of io.sockets.sockets) {
+        if (hostSocket.data?.isHost) {
+          hostSocket.emit('chat-new-message', item);
+          hostSocket.emit('host-chat-state', chatPayloadForHost());
+        }
+      }
+      return;
+    }
+
+    if (mode === 'team') {
+      if (!chatSettings.teamEnabled) {
+        socket.emit('chat-send-error', { message: 'Der Teamchat ist derzeit gesperrt.' });
+        return;
+      }
+      if (!player.teamId || !getTeam(player.teamId)) {
+        socket.emit('chat-send-error', { message: 'Du bist keinem Team zugeordnet.' });
+        return;
+      }
+      const item = {
+        id: chatMessageId(), scope: 'team', teamId: player.teamId,
+        senderType: 'player', senderId: player.id, senderName: player.name,
+        message: text, sentAt: Date.now(), isAnswer: false
+      };
+      addChatMessage(item);
+      for (const teammate of connectedPlayers.values()) {
+        if (teammate.teamId === player.teamId) {
+          io.to(teammate.id).emit('chat-new-message', item);
+          emitChatStateToPlayer(teammate.id);
+        }
+      }
+      for (const [, hostSocket] of io.sockets.sockets) {
+        if (hostSocket.data?.isHost) {
+          hostSocket.emit('chat-new-message', item);
+          hostSocket.emit('host-chat-state', chatPayloadForHost());
+        }
+      }
+    }
+  });
+
+  socket.on('host-chat-send', ({ channelType, targetId, message }) => {
+    const text = cleanMessage(message);
+    if (!text) return;
+    const type = String(channelType || 'private');
+    const id = String(targetId || '');
+
+    if (type === 'private') {
+      const player = connectedPlayers.get(id);
+      if (!player) return;
+      const item = {
+        id: chatMessageId(), scope: 'private', playerId: player.id,
+        senderType: 'host', senderId: 'host', senderName: 'Host',
+        message: text, sentAt: Date.now(), isAnswer: false
+      };
+      addChatMessage(item);
+      io.to(player.id).emit('chat-new-message', item);
+      emitChatStateToPlayer(player.id);
+      socket.emit('chat-new-message', item);
+      emitChatStateToHostSocket(socket);
+      return;
+    }
+
+    if (type === 'team') {
+      const team = getTeam(id);
+      if (!team) return;
+      const item = {
+        id: chatMessageId(), scope: 'team', teamId: team.id,
+        senderType: 'host', senderId: 'host', senderName: 'Host',
+        message: text, sentAt: Date.now(), isAnswer: false
+      };
+      addChatMessage(item);
+      for (const player of connectedPlayers.values()) {
+        if (player.teamId === team.id) {
+          io.to(player.id).emit('chat-new-message', item);
+          emitChatStateToPlayer(player.id);
+        }
+      }
+      socket.emit('chat-new-message', item);
+      emitChatStateToHostSocket(socket);
+    }
+  });
+
+  socket.on('host-chat-settings', ({ privateEnabled, teamEnabled, answerModeEnabled }) => {
+    chatSettings.privateEnabled = Boolean(privateEnabled);
+    chatSettings.teamEnabled = Boolean(teamEnabled);
+    chatSettings.answerModeEnabled = Boolean(answerModeEnabled);
+    broadcastChatStates();
+  });
+
+  socket.on('host-chat-clear', ({ channelType, targetId }) => {
+    const type = String(channelType || 'private');
+    const id = String(targetId || '');
+    if (type === 'private') chatMessages = chatMessages.filter(m => !(m.scope === 'private' && m.playerId === id));
+    if (type === 'team') chatMessages = chatMessages.filter(m => !(m.scope === 'team' && m.teamId === id));
+    broadcastChatStates();
   });
 
   socket.on('host-send-message', ({ message, playerIds, teamIds, allPlayers }) => {
