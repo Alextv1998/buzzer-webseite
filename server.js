@@ -32,6 +32,43 @@ let answerTimerSeconds = 5;
 let answerTimerStartedAt = null;
 let answerTimerBuzzSocketId = '';
 let showPlayerTribune = false;
+
+const BUZZER_TEXT_STATE_FILE = path.join(__dirname, 'buzzer-text-state.json');
+let buzzerTexts = {
+  active: 'AKTIV',
+  inactive: 'INAKTIV',
+  locked: 'LOCKED'
+};
+
+function sanitizeBuzzerText(value, fallback) {
+  const cleaned = String(value ?? '').trim().replace(/[\r\n\t]+/g, ' ').slice(0, 40);
+  return cleaned || fallback;
+}
+
+function saveBuzzerTextState() {
+  try {
+    fs.writeFileSync(BUZZER_TEXT_STATE_FILE, JSON.stringify({ version: 1, buzzerTexts }, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Buzzer-Text-State konnte nicht gespeichert werden:', err.message);
+  }
+}
+
+function loadBuzzerTextState() {
+  try {
+    if (!fs.existsSync(BUZZER_TEXT_STATE_FILE)) return;
+    const parsed = JSON.parse(fs.readFileSync(BUZZER_TEXT_STATE_FILE, 'utf8'));
+    buzzerTexts = {
+      active: sanitizeBuzzerText(parsed?.buzzerTexts?.active, 'AKTIV'),
+      inactive: sanitizeBuzzerText(parsed?.buzzerTexts?.inactive, 'INAKTIV'),
+      locked: sanitizeBuzzerText(parsed?.buzzerTexts?.locked, 'LOCKED')
+    };
+  } catch (err) {
+    console.warn('Buzzer-Text-State konnte nicht geladen werden:', err.message);
+  }
+}
+
+loadBuzzerTextState();
+
 let connectedPlayers = new Map();
 const TEAM_STATE_FILE = path.join(__dirname, 'team-state.json');
 const DEFAULT_TEAMS = [
@@ -188,6 +225,7 @@ function publicState() {
     answerTimerRemainingMs: answerTimerStartedAt ? Math.max(0, Math.round(answerTimerSeconds * 1000) - (now - answerTimerStartedAt)) : 0,
     answerTimerBuzzSocketId,
     showPlayerTribune,
+    buzzerTexts,
     teams: publicTeams,
     players
   };
@@ -698,6 +736,17 @@ io.on('connection', (socket) => {
     if (!allowed.has(name)) return;
     if (share) io.emit('soundboard-play', { sound: name });
     else socket.emit('soundboard-play', { sound: name });
+  });
+
+  socket.on('host-set-buzzer-texts', (payload) => {
+    const next = payload && typeof payload === 'object' ? payload : {};
+    buzzerTexts = {
+      active: sanitizeBuzzerText(next.active, 'AKTIV'),
+      inactive: sanitizeBuzzerText(next.inactive, 'INAKTIV'),
+      locked: sanitizeBuzzerText(next.locked, 'LOCKED')
+    };
+    saveBuzzerTextState();
+    broadcastState();
   });
 
   socket.on('host-set-point-value', (value) => {

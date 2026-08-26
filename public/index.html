@@ -186,7 +186,20 @@
     .chat-channel-title { font-weight:900; margin-bottom:7px; }
     @media(max-width:760px){ .host-chat-layout{grid-template-columns:1fr}.host-chat-channels{max-height:150px}.chat-log{height:180px} }
 
-    /* Spieler: Buzzer + Chat nebeneinander, auf schmalen Fenstern untereinander */
+
+    #playerView #playerChatShell { margin:14px 0 18px; width:100%; }
+    .buzzer { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; }
+    .buzzer-main-label { display:block; line-height:1; }
+    .buzzer-state-label {
+      display:block;
+      font-size:clamp(13px,1.7vw,18px);
+      letter-spacing:.12em;
+      font-weight:900;
+      opacity:.9;
+      text-transform:uppercase;
+    }
+
+    /* Alte responsive Chat-Regeln (nicht mehr für das Layout verwendet) */
     .player-main-grid {
       display:grid;
       grid-template-columns:minmax(320px, 1fr) minmax(340px, 430px);
@@ -338,6 +351,10 @@
       .desktop-table { display: block; overflow-x: auto; }
       th, td { white-space: nowrap; }
     }
+  
+    [data-card="buzzertexts"] input { width:100%; }
+    [data-card="buzzertexts"] #buzzerTextsSaved { line-height:1.45; overflow-wrap:anywhere; }
+
   </style>
 </head>
 <body>
@@ -383,15 +400,7 @@
         <span id="playerChatNoticeText">Neue Nachricht</span>
         <span id="playerChatNoticeCount" class="notice-count">1</span>
       </div>
-
-      <div class="player-main-grid">
-        <div class="player-buzzer-zone">
-          <button id="buzzer" class="buzzer" disabled>BUZZ!</button>
-          <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
-          <p id="playerResult" class="status"></p>
-        </div>
-
-        <div id="playerChatShell" class="chat-shell">
+      <div id="playerChatShell" class="chat-shell">
           <div class="chat-head">
             <div class="chat-head-title"><strong>Chat</strong><span id="playerChatHeadUnread" class="chat-head-unread hidden">0</span></div>
             <button id="togglePlayerChat" class="chat-collapse" type="button">Minimieren</button>
@@ -406,7 +415,9 @@
             <div id="playerChatLog" class="chat-log"></div>
             <div class="chat-compose"><input id="playerChatInput" maxlength="500" placeholder="Nachricht schreiben …"><button id="playerChatSend" type="button">Senden</button></div>
           </div>
-        </div>
+      <button id="buzzer" class="buzzer" disabled><span class="buzzer-main-label">BUZZ!</span><span id="buzzerStateLabel" class="buzzer-state-label">INAKTIV</span></button>
+          <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
+          <p id="playerResult" class="status"></p>
       </div>
       <div id="playerTribune" class="tribune-player-view hidden"><h3>🏟️ Tribüne</h3><div id="playerTribuneContent" class="tribune"></div></div>
       <div id="playerBuzzDetails" class="player-buzz-details hidden"><h3>Buzz-Reihenfolge</h3><div class="desktop-table"><table><thead><tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr></thead><tbody id="playerBuzzTable"></tbody></table></div></div>
@@ -448,6 +459,22 @@
         </section>
 
 
+
+
+        <section class="dash-card" data-card="buzzertexts" data-size="medium">
+          <div class="dash-head"><h3>✏️ Buzzer-Texte</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label for="buzzerTextActive">Text bei aktivem Buzzer</label>
+          <input id="buzzerTextActive" maxlength="40" placeholder="AKTIV">
+          <label for="buzzerTextInactive" style="display:block;margin-top:9px">Text bei inaktivem Buzzer</label>
+          <input id="buzzerTextInactive" maxlength="40" placeholder="INAKTIV">
+          <label for="buzzerTextLocked" style="display:block;margin-top:9px">Text bei gesperrtem Buzzer</label>
+          <input id="buzzerTextLocked" maxlength="40" placeholder="LOCKED">
+          <div class="controls" style="margin-top:10px">
+            <button id="saveBuzzerTexts" class="host-start" type="button">Texte speichern</button>
+            <button id="resetBuzzerTexts" class="small-button" type="button">Standard</button>
+          </div>
+          <div id="buzzerTextsSaved" class="small" style="margin-top:8px">Aktiv: AKTIV · Inaktiv: INAKTIV · Gesperrt: LOCKED</div>
+        </section>
 
         <section class="dash-card" data-card="answertimer" data-size="medium">
           <div class="dash-head"><h3>⏱️ Antworttimer</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
@@ -545,8 +572,16 @@
     let playerSocketId = '';
     let buzzPending = false;
     let audioContext = null;
-    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, showPlayerBuzzDetails: false, currentGameName: '', currentGameRules: '', answerTimerEnabled: false, answerTimerSeconds: 5, answerTimerStartedAt: null, answerTimerRemainingMs: 0, answerTimerBuzzSocketId: '', showPlayerTribune: false, teams: [], players: [] };
+    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, showPlayerBuzzDetails: false, currentGameName: '', currentGameRules: '', answerTimerEnabled: false, answerTimerSeconds: 5, answerTimerStartedAt: null, answerTimerRemainingMs: 0, answerTimerBuzzSocketId: '', showPlayerTribune: false, buzzerTexts: { active:'AKTIV', inactive:'INAKTIV', locked:'LOCKED' }, teams: [], players: [] };
     const TEAM_BACKUP_KEY = 'buzzer-team-state-v2';
+    const BUZZER_TEXT_BACKUP_KEY = 'buzzer-texts-v1';
+    function readBuzzerTextBackup(){
+      try { const raw=localStorage.getItem(BUZZER_TEXT_BACKUP_KEY); return raw ? JSON.parse(raw) : null; } catch(_) { return null; }
+    }
+    function saveBuzzerTextBackup(texts){
+      try { localStorage.setItem(BUZZER_TEXT_BACKUP_KEY, JSON.stringify(texts)); } catch(_) {}
+    }
+
     let teamBackupRestorePending = false;
     function readTeamBackup(){ try{ const raw=localStorage.getItem(TEAM_BACKUP_KEY); return raw ? JSON.parse(raw) : null; }catch(_){ return null; } }
     function makeTeamBackup(){ const byName={}; (state.players||[]).forEach(p=>{ if(p.name) byName[p.name]=p.teamId||''; }); return {version:2,savedAt:Date.now(),teams:(state.teams||[]).map(t=>({id:t.id,name:t.name,color:t.color,buzzerLocked:!!t.buzzerLocked})),playerTeamsByName:byName}; }
@@ -1000,6 +1035,14 @@
     socket.on('host-auth-result', result => {
       if(!result?.ok){ role='host-auth'; $('hostLoginError').textContent='Falsches Host-Passwort.'; $('hostPassword').select(); return; }
       role='host'; ensureAudio(); show(hostView);
+      const savedBuzzerTexts = readBuzzerTextBackup();
+      if(savedBuzzerTexts && typeof savedBuzzerTexts === 'object') {
+        const serverTexts = state.buzzerTexts || {active:'AKTIV',inactive:'INAKTIV',locked:'LOCKED'};
+        const serverIsDefault = serverTexts.active==='AKTIV' && serverTexts.inactive==='INAKTIV' && serverTexts.locked==='LOCKED';
+        const browserDiffers = savedBuzzerTexts.active!=='AKTIV' || savedBuzzerTexts.inactive!=='INAKTIV' || savedBuzzerTexts.locked!=='LOCKED';
+        if(serverIsDefault && browserDiffers) socket.emit('host-set-buzzer-texts', savedBuzzerTexts);
+      }
+
       const savedTeams=readTeamBackup();
       if(savedTeams?.teams?.length){
         teamBackupRestorePending=true;
@@ -1048,6 +1091,10 @@
 
     $('joinButton').onclick = join;
     $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
+
+    const buzzerStateObserver = new MutationObserver(() => updateBuzzerStateLabel());
+    buzzerStateObserver.observe($('buzzer'), {attributes:true, attributeFilter:['disabled','class']});
+
     $('buzzer').onclick = buzz;
     $('togglePlayerChat').onclick = () => {
       const shell=$('playerChatShell');
@@ -1086,6 +1133,28 @@
     $('moveWorkspaceRight').onclick=()=>{ const i=workspaceTabs.findIndex(x=>x.id===activeWorkspaceId); if(i>=0&&i<workspaceTabs.length-1){[workspaceTabs[i+1],workspaceTabs[i]]=[workspaceTabs[i],workspaceTabs[i+1]];saveWorkspaceConfig();renderWorkspaceTabs();} };
     $('restorePanel').onclick = () => { const key=$('hiddenPanelSelect').value; if(!key) return; const card=document.querySelector('#dashboard .dash-card[data-instance="'+CSS.escape(key)+'"]'); if(card){ setPanelHidden(card,false); card.scrollIntoView({behavior:'smooth',block:'nearest'}); } };
     $('hiddenPanelSelect').onchange = () => { $('restorePanel').disabled = !$('hiddenPanelSelect').value; };
+    function submitBuzzerTexts() {
+      const payload = {
+        active: $('buzzerTextActive').value.trim() || 'AKTIV',
+        inactive: $('buzzerTextInactive').value.trim() || 'INAKTIV',
+        locked: $('buzzerTextLocked').value.trim() || 'LOCKED'
+      };
+      saveBuzzerTextBackup(payload);
+      socket.emit('host-set-buzzer-texts', payload);
+      $('buzzerTextsSaved').textContent = `Aktiv: ${payload.active} · Inaktiv: ${payload.inactive} · Gesperrt: ${payload.locked}`;
+    }
+
+    $('saveBuzzerTexts').onclick = submitBuzzerTexts;
+    $('resetBuzzerTexts').onclick = () => {
+      $('buzzerTextActive').value='AKTIV';
+      $('buzzerTextInactive').value='INAKTIV';
+      $('buzzerTextLocked').value='LOCKED';
+      submitBuzzerTexts();
+    };
+    ['buzzerTextActive','buzzerTextInactive','buzzerTextLocked'].forEach(id => {
+      $(id).addEventListener('keydown', e => { if(e.key==='Enter') submitBuzzerTexts(); });
+    });
+
     $('setPointValue').onclick = () => socket.emit('host-set-point-value', $('pointValue').value);
     $('setEarlyPenalty').onclick = () => socket.emit('host-set-early-penalty', $('earlyPenalty').value);
     $('saveAnswerTimer').onclick = () => socket.emit('host-set-answer-timer', { enabled: $('answerTimerEnabled').checked, seconds: $('answerTimerSeconds').value });
@@ -1206,6 +1275,8 @@
         }
         renderPlayerChat();
       }
+      if (role === 'player') updateBuzzerStateLabel();
+
       if (role === 'host') {
         const key = `${item.scope === 'private' ? 'private' : 'team'}:${item.scope === 'private' ? item.playerId : item.teamId}`;
         if (!(hostChatSelection.type === (item.scope==='private'?'private':'team') && hostChatSelection.id === (item.scope==='private'?item.playerId:item.teamId))) {
@@ -1431,6 +1502,31 @@
     function clearAvatar(id) { socket.emit('host-set-player-avatar',{id,dataUrl:''}); }
     function setTribuneVisible(id, visible) { socket.emit('host-set-player-tribune-visible',{id,visible}); }
 
+
+    function currentBuzzerTexts() {
+      const t = state.buzzerTexts || {};
+      return {
+        active: String(t.active || 'AKTIV'),
+        inactive: String(t.inactive || 'INAKTIV'),
+        locked: String(t.locked || 'LOCKED')
+      };
+    }
+
+    function updateBuzzerStateLabel() {
+      const label = $('buzzerStateLabel');
+      const buzzer = $('buzzer');
+      if (!label || !buzzer) return;
+
+      const me = (state.players || []).find(p => p.id === socket.id);
+      const myTeam = me && state.teams ? state.teams.find(t => t.id === me.teamId) : null;
+      const manuallyLocked = !!(me && me.buzzerLocked) || !!(myTeam && myTeam.buzzerLocked);
+      const texts = currentBuzzerTexts();
+
+      if (manuallyLocked) label.textContent = texts.locked;
+      else if (buzzer.disabled) label.textContent = texts.inactive;
+      else label.textContent = texts.active;
+    }
+
     function render() {
       const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
       const me = state.players.find(p => p.id === socket.id);
@@ -1518,6 +1614,13 @@
         $('answerTimerEnabled').checked = !!state.answerTimerEnabled;
         if(document.activeElement !== $('answerTimerSeconds')) $('answerTimerSeconds').value = state.answerTimerSeconds;
         $('showPlayerTribune').checked = !!state.showPlayerTribune;
+        const bt = state.buzzerTexts || {active:'AKTIV',inactive:'INAKTIV',locked:'LOCKED'};
+        if(document.activeElement !== $('buzzerTextActive')) $('buzzerTextActive').value = bt.active;
+        if(document.activeElement !== $('buzzerTextInactive')) $('buzzerTextInactive').value = bt.inactive;
+        if(document.activeElement !== $('buzzerTextLocked')) $('buzzerTextLocked').value = bt.locked;
+        $('buzzerTextsSaved').textContent = `Aktiv: ${bt.active} · Inaktiv: ${bt.inactive} · Gesperrt: ${bt.locked}`;
+        if(role==='host') saveBuzzerTextBackup(bt);
+
         const hostTimerRemaining=answerTimerRemaining(); const answering=state.players.find(p=>p.id===state.answerTimerBuzzSocketId);
         if(!state.answerTimerEnabled){ $('answerTimerValue').textContent='Aus'; $('answerTimerWho').textContent='Antworttimer ist deaktiviert.'; } else if(hostTimerRemaining===null){ $('answerTimerValue').textContent='Bereit'; $('answerTimerWho').textContent='Startet beim ersten Buzz.'; } else { const sec=Math.max(0,hostTimerRemaining/1000); $('answerTimerValue').textContent=`${sec.toFixed(1)} s`; $('answerTimerWho').textContent=answering ? `${answering.name} antwortet` : 'Antwort läuft'; }
         $('hostTribune').innerHTML = buildTribune();
