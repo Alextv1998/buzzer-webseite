@@ -20,6 +20,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 let roundOpen = false;
 let roundStart = null;
+let globalBuzzerLocked = false;
 let buzzes = [];
 let earlyBuzzes = [];
 let pointValue = 1;
@@ -212,6 +213,7 @@ function publicState() {
   return {
     roundOpen,
     roundStart,
+    globalBuzzerLocked,
     buzzes,
     earlyBuzzes,
     pointValue,
@@ -282,6 +284,10 @@ io.on('connection', (socket) => {
 
   socket.on('buzz', () => {
     const player = connectedPlayers.get(socket.id);
+    if (globalBuzzerLocked) {
+      socket.emit('buzz-disabled', { reason: 'global' });
+      return;
+    }
     if (!player) return;
 
     const now = Date.now();
@@ -348,6 +354,7 @@ io.on('connection', (socket) => {
     buzzes = [];
     roundStart = Date.now();
     roundOpen = true;
+    globalBuzzerLocked = false;
     answerTimerStartedAt = null;
     answerTimerBuzzSocketId = '';
     broadcastState();
@@ -355,12 +362,14 @@ io.on('connection', (socket) => {
 
   socket.on('host-close', () => {
     roundOpen = false;
+    globalBuzzerLocked = true;
     broadcastState();
   });
 
   socket.on('host-reset', () => {
     roundOpen = false;
     roundStart = null;
+    globalBuzzerLocked = false;
     buzzes = [];
     earlyBuzzes = [];
     answerTimerStartedAt = null;

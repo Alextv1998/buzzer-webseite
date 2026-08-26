@@ -355,6 +355,18 @@
     [data-card="buzzertexts"] input { width:100%; }
     [data-card="buzzertexts"] #buzzerTextsSaved { line-height:1.45; overflow-wrap:anywhere; }
 
+  
+    /* Spieleransicht: Buzzer zuerst, Chat darunter */
+    .player-main-grid { display:block !important; margin:0 !important; }
+    .player-buzzer-zone { display:contents !important; }
+    #playerView #playerChatShell {
+      display:block;
+      width:100%;
+      max-width:none;
+      margin:16px 0 0;
+    }
+    #playerView #playerChatNotice { margin:14px 0 0; }
+
   </style>
 </head>
 <body>
@@ -396,6 +408,9 @@
       <div id="playerAnswerTimer" class="answer-timer-player hidden"><div class="small">Antwortzeit <span id="playerAnsweringName"></span></div><div id="playerAnswerTimerValue" class="timer-number">0.0 s</div></div>
       <div id="playerStatus" class="status closed">Warte auf den Host …</div>
       <div id="playerMessages" class="hidden"></div>
+      <button id="buzzer" class="buzzer" disabled><span class="buzzer-main-label">BUZZ!</span><span id="buzzerStateLabel" class="buzzer-state-label">INAKTIV</span></button>
+          <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
+          <p id="playerResult" class="status"></p>
       <div id="playerChatNotice" class="player-chat-notice hidden" role="status" aria-live="polite" tabindex="0">
         <span id="playerChatNoticeText">Neue Nachricht</span>
         <span id="playerChatNoticeCount" class="notice-count">1</span>
@@ -406,7 +421,7 @@
             <button id="togglePlayerChat" class="chat-collapse" type="button">Minimieren</button>
           </div>
           <div class="chat-body">
-            <div id="answerModeBox" class="answer-mode-box hidden"><strong>Antwortmodus aktiv</strong><div class="small">Deine Nachricht im Host-Chat wird als geheime Antwort markiert.</div></div>
+            <div id="answerModeBox" class="answer-mode-box hidden"><strong>Antwortmodus aktiv</strong><div class="small">Deine Nachricht im Host-Chat wird als Antwort markiert.</div></div>
             <div class="chat-tabs">
               <button id="playerChatHostTab" class="chat-tab active" type="button">Privat mit Host <span id="playerHostUnread" class="chat-badge hidden">0</span></button>
               <button id="playerChatTeamTab" class="chat-tab" type="button">Teamchat <span id="playerTeamUnread" class="chat-badge hidden">0</span></button>
@@ -419,8 +434,8 @@
           <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
           <p id="playerResult" class="status"></p>
       </div>
-      <div id="playerTribune" class="tribune-player-view hidden"><h3>🏟️ Tribüne</h3><div id="playerTribuneContent" class="tribune"></div></div>
-      <div id="playerBuzzDetails" class="player-buzz-details hidden"><h3>Buzz-Reihenfolge</h3><div class="desktop-table"><table><thead><tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr></thead><tbody id="playerBuzzTable"></tbody></table></div></div>
+
+      h>Zeit</th><th>Abstand zu #1</th></tr></thead><tbody id="playerBuzzTable"></tbody></table></div></div>
       <button class="back">Zurück</button>
     </section>
 
@@ -572,7 +587,7 @@
     let playerSocketId = '';
     let buzzPending = false;
     let audioContext = null;
-    let state = { roundOpen: false, roundStart: null, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, showPlayerBuzzDetails: false, currentGameName: '', currentGameRules: '', answerTimerEnabled: false, answerTimerSeconds: 5, answerTimerStartedAt: null, answerTimerRemainingMs: 0, answerTimerBuzzSocketId: '', showPlayerTribune: false, buzzerTexts: { active:'AKTIV', inactive:'INAKTIV', locked:'LOCKED' }, teams: [], players: [] };
+    let state = { roundOpen: false, roundStart: null, globalBuzzerLocked: false, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, showPlayerBuzzDetails: false, currentGameName: '', currentGameRules: '', answerTimerEnabled: false, answerTimerSeconds: 5, answerTimerStartedAt: null, answerTimerRemainingMs: 0, answerTimerBuzzSocketId: '', showPlayerTribune: false, buzzerTexts: { active:'AKTIV', inactive:'INAKTIV', locked:'LOCKED' }, teams: [], players: [] };
     const TEAM_BACKUP_KEY = 'buzzer-team-state-v2';
     const BUZZER_TEXT_BACKUP_KEY = 'buzzer-texts-v1';
     function readBuzzerTextBackup(){
@@ -1091,11 +1106,7 @@
 
     $('joinButton').onclick = join;
     $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
-
-    const buzzerStateObserver = new MutationObserver(() => updateBuzzerStateLabel());
-    buzzerStateObserver.observe($('buzzer'), {attributes:true, attributeFilter:['disabled','class']});
-
-    $('buzzer').onclick = buzz;
+$('buzzer').onclick = buzz;
     $('togglePlayerChat').onclick = () => {
       const shell=$('playerChatShell');
       shell.classList.toggle('collapsed');
@@ -1122,7 +1133,12 @@
     });
 
     $('startRound').onclick = () => { ensureAudio(); socket.emit('host-start'); };
-    $('closeRound').onclick = () => socket.emit('host-close');
+    $('closeRound').onclick = () => {
+      socket.emit('host-close');
+      // Host feedback is immediate; server broadcast confirms it for all players.
+      $('hostStatus').textContent = 'Buzzer sind gesperrt';
+      $('hostStatus').className = 'status closed';
+    };
     $('resetRound').onclick = () => socket.emit('host-reset');
     $('toggleLayoutLock').onclick = () => { layoutLocked = !layoutLocked; localStorage.setItem('buzzer-layout-locked', layoutLocked ? '1' : '0'); applyLayoutLock(); };
     $('resetLayout').onclick = () => { localStorage.removeItem('buzzer-dashboard-layout-v3'); localStorage.removeItem('buzzer-workspaces-v1'); localStorage.removeItem('buzzer-dashboard-layout-v2'); localStorage.removeItem('buzzer-dashboard-layout'); localStorage.removeItem('buzzer-layout-locked'); localStorage.removeItem(LAYOUT_STATE_KEY); localStorage.removeItem(LAYOUT_BACKUP_KEY); location.reload(); };
@@ -1141,7 +1157,7 @@
       };
       saveBuzzerTextBackup(payload);
       socket.emit('host-set-buzzer-texts', payload);
-      $('buzzerTextsSaved').textContent = `Aktiv: ${payload.active} · Inaktiv: ${payload.inactive} · Gesperrt: ${payload.locked}`;
+      $('buzzerTextsSaved').textContent = `Gespeichert · Aktiv: ${payload.active} · Inaktiv: ${payload.inactive} · Gesperrt: ${payload.locked}`;
     }
 
     $('saveBuzzerTexts').onclick = submitBuzzerTexts;
@@ -1316,7 +1332,7 @@
 
     function chatLineHtml(item, mine) {
       const cls = `chat-line${mine?' mine':''}${item.isAnswer?' answer':''}`;
-      const answer = item.isAnswer ? '<div class="small" style="color:#f7dc6f;font-weight:800">GEHEIME ANTWORT</div>' : '';
+      const answer = item.isAnswer ? '<div class="small" style="color:#f7dc6f;font-weight:800">ANTWORT:</div>' : '';
       return `<div class="${cls}"><div class="chat-author">${escapeHtml(item.senderName || (item.senderType==='host'?'Host':'Spieler'))}</div>${answer}<div>${escapeHtml(item.message)}</div><div class="chat-time">${chatTime(item.sentAt)}</div></div>`;
     }
 
@@ -1384,7 +1400,7 @@
       disabled.classList.toggle('hidden',enabled);
       if(!enabled) disabled.textContent=playerChatChannel==='host'?'Der Privatchat wurde vom Host gesperrt.':(!playerChatState.teamId?'Du bist aktuell keinem Team zugeordnet.':'Der Teamchat wurde vom Host gesperrt.');
       $('playerChatInput').disabled=!enabled; $('playerChatSend').disabled=!enabled;
-      $('playerChatInput').placeholder=settings.answerModeEnabled&&playerChatChannel==='host'?'Geheime Antwort an Host …':'Nachricht schreiben …';
+      $('playerChatInput').placeholder=settings.answerModeEnabled&&playerChatChannel==='host'?'Antwort:':'Nachricht schreiben …';
       const items=playerChatChannel==='host'?(playerChatState.private||[]):(playerChatState.team||[]);
       const log=$('playerChatLog');
       log.innerHTML=items.length?items.map(x=>chatLineHtml(x,x.senderId===socket.id)).join(''):'<div class="small">Noch keine Nachrichten.</div>';
@@ -1519,12 +1535,25 @@
 
       const me = (state.players || []).find(p => p.id === socket.id);
       const myTeam = me && state.teams ? state.teams.find(t => t.id === me.teamId) : null;
-      const manuallyLocked = !!(me && me.buzzerLocked) || !!(myTeam && myTeam.buzzerLocked);
       const texts = currentBuzzerTexts();
 
-      if (manuallyLocked) label.textContent = texts.locked;
-      else if (buzzer.disabled) label.textContent = texts.inactive;
-      else label.textContent = texts.active;
+      const manualLock = !!(me && me.buzzerLocked) || !!(myTeam && myTeam.buzzerLocked);
+      const hostLock = !!state.globalBuzzerLocked;
+
+      // LOCKED ist ausschließlich ein echter Sperrzustand:
+      // Host hat "Buzzer sperren" gedrückt oder Spieler/Team ist manuell gesperrt.
+      if (hostLock || manualLock) {
+        label.textContent = texts.locked;
+        return;
+      }
+
+      // AKTIV nur dann, wenn dieser Spieler JETZT tatsächlich buzzern kann.
+      const canBuzzNow =
+        !!state.roundOpen &&
+        !buzzer.disabled &&
+        !buzzPending;
+
+      label.textContent = canBuzzNow ? texts.active : texts.inactive;
     }
 
     function render() {
@@ -1565,7 +1594,13 @@
         const earlyBuzz = state.earlyBuzzes.find(b => b.socketId === socket.id);
         const remainingMs = playerLockRemaining(me);
         const manualLock = me && isBuzzerManuallyLocked(me);
-        if (manualLock) {
+        const hostGlobalLock = !!state.globalBuzzerLocked;
+        if (hostGlobalLock) {
+          buzzer.disabled = true;
+          status.textContent = 'Buzzer wurde vom Host gesperrt';
+          status.className = 'status closed';
+          $('playerResult').textContent = me ? playerSummary(me) : '';
+        } else if (manualLock) {
           buzzer.disabled = true;
           status.textContent = me.buzzerLocked ? 'Dein Buzzer wurde vom Host gesperrt' : `Team ${myTeam?.name || ''}: Buzzer gesperrt`;
           status.className = 'status closed';
@@ -1598,12 +1633,15 @@
           status.className = 'status closed';
           $('playerResult').textContent = me ? playerSummary(me) : '';
         }
+        updateBuzzerStateLabel();
       }
 
       if (role === 'host') {
         renderHostChat();
-        $('hostStatus').textContent = state.roundOpen ? 'Runde läuft – Buzzer offen' : 'Runde ist geschlossen';
-        $('hostStatus').className = state.roundOpen ? 'status open' : 'status closed';
+        $('hostStatus').textContent = state.globalBuzzerLocked
+          ? 'Buzzer sind gesperrt'
+          : (state.roundOpen ? 'Runde läuft – Buzzer offen' : 'Buzzer sind inaktiv');
+        $('hostStatus').className = state.roundOpen && !state.globalBuzzerLocked ? 'status open' : 'status closed';
         $('playerCount').textContent = state.players.length;
         $('pointValue').value = state.pointValue;
         $('pointValueSaved').textContent = `Gespeichert: ${formatNumber(state.pointValue)} Punkte`;
