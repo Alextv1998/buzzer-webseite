@@ -1,17 +1,49 @@
-# #Musiklex Online-Buzzer
+# #Musiklex Online-Buzzer – aktueller Stand
 
-Dieses Update enthält:
+Diese Version enthält eine vollständig bereinigte Spieleransicht.
 
-- robustere, automatische Speicherung des kompletten Host-Layouts (Tabs, Panel-Kopien, Positionen, Größen, minimiert/ausgeblendet und Layout-Sperre) im Browser, inklusive Backup und Migration der bisherigen Layout-Daten;
-- Host-Passwortschutz;
-- Spieler-kicken-Funktion in der Spielerverwaltung.
+## Spieleransicht
 
-## Host-Passwort
+Die Reihenfolge ist jetzt:
 
-Das vereinbarte Host-Passwort wird serverseitig geprüft. Im Browser/`public/index.html` liegt es nicht im Klartext.
+1. Spiel-/Rundenstatus
+2. ein einzelner, kreisrunder Gameshow-Buzzer
+3. persönliche Punkte und Teampunkte direkt unter dem Buzzer
+4. ggf. Buzz-Platzierung / Reaktionszeit
+5. Chat-Benachrichtigung
+6. Chat
+7. optionale Team-Tribüne
+8. optionale Buzz-Reihenfolge
 
-Optional kann auf Render die Umgebungsvariable `HOST_PASSWORD_HASH` gesetzt werden, wenn das Passwort später geändert werden soll. Erwartet wird ein SHA-256-Hash.
+Auf dem Buzzer steht ausschließlich der vom Host definierte Zustandstext.
 
-## Update auf GitHub
+Die Punkteanzeige bleibt dauerhaft sichtbar und zeigt:
+- `Punkte: <Spielerpunkte>`
+- zusätzlich `<Teamname>: <Teampunkte> Teampunkte`, wenn der Spieler einem Team angehört
 
-`server.js` und `public/index.html` ersetzen. Die vorhandenen Sounds bleiben unverändert.
+## Chat
+
+Es gibt:
+- Privat-Chat Spieler ↔ Host
+- Teamchat
+- Spieler-Benachrichtigungen
+- Antwortmodus
+
+Im Antwortmodus werden Nachrichten beim Host mit `ANTWORT:` markiert.
+
+## Buzzer-Zustände
+
+Die drei Zustandstexte können im Host-Panel „Buzzer-Texte“ frei bearbeitet werden:
+- Aktiv
+- Inaktiv
+- Gesperrt
+
+„Buzzer sperren“ ist ein globaler Sperrzustand. Einzelne Spieler und Teams können zusätzlich separat gesperrt werden.
+
+## Persistenz
+
+Gespeichert werden unter anderem Teams, Teamfarben, Teamreihenfolge, Spieler-Team-Zuordnungen, Buzzer-Sperren, Layout/Tabs/Panelgrößen und die frei definierten Buzzer-Texte.
+
+## Reparatur in dieser Version
+
+Der beschädigte sichtbare HTML-Text `h>Zeit … Abstand zu #1` wurde vollständig entfernt. Die dafür nötigen Bereiche „Buzz-Reihenfolge“ und „Team-Tribüne“ wurden korrekt wiederhergestellt.

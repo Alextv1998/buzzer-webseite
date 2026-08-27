@@ -377,7 +377,7 @@
     #hostLoginView .controls input, #hostLoginView .controls select, #hostLoginView .controls button {
       width:100% !important; box-sizing:border-box !important; margin:0 !important;
     }
-    .player-result-hidden { display:none !important; }
+    
     #playerView .buzzer {
       width:min(78vw,430px) !important; min-height:190px !important;
       border-radius:50% / 34% !important; padding:30px 38px !important;
@@ -598,6 +598,87 @@
       }
     }
 
+
+    /* Saubere Spieleransicht */
+    #playerView #buzzer {
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      width:320px !important;
+      height:320px !important;
+      min-width:320px !important;
+      min-height:320px !important;
+      max-width:320px !important;
+      max-height:320px !important;
+      aspect-ratio:1 / 1 !important;
+      border-radius:50% !important;
+      padding:34px !important;
+      margin:20px auto 0 !important;
+      box-sizing:border-box !important;
+      flex:none !important;
+      overflow:hidden !important;
+      pointer-events:auto !important;
+    }
+    #playerView #buzzer .buzzer-state-label {
+      width:100% !important;
+      text-align:center !important;
+      font-size:clamp(24px,4vw,40px) !important;
+      line-height:1.08 !important;
+      overflow-wrap:anywhere !important;
+      pointer-events:none !important;
+    }
+    .player-score-summary {
+      margin:18px auto 8px;
+      width:fit-content;
+      max-width:100%;
+      padding:10px 16px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:rgba(255,255,255,.045);
+      font-size:1.05rem;
+      font-weight:850;
+      text-align:center;
+      overflow-wrap:anywhere;
+    }
+    .player-buzz-result { margin:8px 0 0 !important; }
+    #playerView #playerChatNotice { margin:14px 0 0 !important; }
+    #playerView #playerChatShell {
+      display:block !important;
+      position:relative !important;
+      width:100% !important;
+      max-width:none !important;
+      margin:16px 0 0 !important;
+    }
+    #playerView #playerTribune,
+    #playerView #playerBuzzDetails { margin-top:18px; }
+
+    @media(max-width:500px) {
+      #playerView #buzzer {
+        width:260px !important;
+        height:260px !important;
+        min-width:260px !important;
+        min-height:260px !important;
+        max-width:260px !important;
+        max-height:260px !important;
+      }
+    }
+
+    /* Login-Buttons ordentlich nebeneinander */
+    #playerSetup .controls,
+    #hostLogin .controls {
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
+      gap:12px !important;
+      width:100% !important;
+    }
+    #playerSetup .controls > button,
+    #hostLogin .controls > button {
+      width:100% !important;
+      min-width:0 !important;
+      margin:0 !important;
+      box-sizing:border-box !important;
+    }
+
 </style>
 </head>
 <body>
@@ -637,11 +718,15 @@
       <h2 id="helloPlayer">Spieler</h2>
       <div id="playerGameInfo" class="game-info-player hidden"><h3 id="playerGameName"></h3><p id="playerGameRules" class="game-rules-text"></p></div>
       <div id="playerAnswerTimer" class="answer-timer-player hidden"><div class="small">Antwortzeit <span id="playerAnsweringName"></span></div><div id="playerAnswerTimerValue" class="timer-number">0.0 s</div></div>
+
       <div id="playerStatus" class="status closed">Warte auf den Host …</div>
-      <div id="playerMessages" class="hidden"></div>
+      <div id="playerMessages"></div>
+
       <button id="buzzer" class="buzzer" disabled type="button"><span id="buzzerStateLabel" class="buzzer-state-label">INAKTIV</span></button>
-          
-          <p id="playerResult" class="status player-result-hidden"></p>
+
+      <div id="playerScoreSummary" class="player-score-summary">Punkte: 0</div>
+      <p id="playerResult" class="status player-buzz-result"></p>
+
       <div id="playerChatNotice" class="player-chat-notice hidden" role="status" aria-live="polite" tabindex="0">
         <span id="playerChatNoticeText">Neue Nachricht</span>
         <span id="playerChatNoticeCount" class="notice-count">1</span>
@@ -664,7 +749,23 @@
       
       </div>
 
-      h>Zeit</th><th>Abstand zu #1</th></tr></thead><tbody id="playerBuzzTable"></tbody></table></div></div>
+      <div id="playerTribune" class="tribune-player-view hidden">
+        <h3>🏟️ Tribüne</h3>
+        <div id="playerTribuneContent" class="tribune"></div>
+      </div>
+
+      <div id="playerBuzzDetails" class="player-buzz-details hidden">
+        <h3>Buzz-Reihenfolge</h3>
+        <div class="desktop-table">
+          <table>
+            <thead>
+              <tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr>
+            </thead>
+            <tbody id="playerBuzzTable"></tbody>
+          </table>
+        </div>
+      </div>
+
       <button class="back">Zurück</button>
     </section>
 
@@ -1800,6 +1901,12 @@ $('togglePlayerChat').onclick = () => {
         const buzzer = $('buzzer');
         const status = $('playerStatus');
         const myTeam = teamFor(me?.teamId);
+        const scoreSummary = $('playerScoreSummary');
+        if (scoreSummary) {
+          scoreSummary.textContent = me ? playerSummary(me) : 'Punkte: 0';
+          scoreSummary.style.borderColor = myTeam?.color || '';
+          scoreSummary.style.color = myTeam?.color || '';
+        }
         $('helloPlayer').textContent = me ? `Spieler: ${me.name}${myTeam ? ` · ${myTeam.name}` : ''}` : `Spieler: ${playerName}`;
         $('helloPlayer').style.color = myTeam?.color || '';
         $('helloPlayer').style.borderLeftColor = myTeam?.color || 'currentColor';
@@ -1828,12 +1935,12 @@ $('togglePlayerChat').onclick = () => {
           buzzer.disabled = true;
           status.textContent = 'Buzzer wurde vom Host gesperrt';
           status.className = 'status closed';
-          $('playerResult').textContent = me ? playerSummary(me) : '';
+          $('playerResult').textContent = '';
         } else if (manualLock) {
           buzzer.disabled = true;
           status.textContent = me.buzzerLocked ? 'Dein Buzzer wurde vom Host gesperrt' : `Team ${myTeam?.name || ''}: Buzzer gesperrt`;
           status.className = 'status closed';
-          $('playerResult').textContent = me ? playerSummary(me) : '';
+          $('playerResult').textContent = '';
         } else if (myBuzz) {
           buzzer.disabled = true;
           status.textContent = 'Gebuzzert!';
@@ -1844,23 +1951,23 @@ $('togglePlayerChat').onclick = () => {
           buzzer.disabled = true;
           status.textContent = `Zu früh! Noch ${(remainingMs / 1000).toFixed(1)} s gesperrt`;
           status.className = 'status early';
-          $('playerResult').textContent = me ? playerSummary(me) : '';
+          $('playerResult').textContent = '';
         } else if (state.roundOpen) {
           buzzer.disabled = buzzPending;
           status.textContent = buzzPending ? 'Buzz wird gesendet …' : 'Buzzer ist offen!';
           status.className = 'status open';
-          $('playerResult').textContent = me ? playerSummary(me) : '';
+          $('playerResult').textContent = '';
         } else if (state.roundStart === null) {
           buzzer.disabled = buzzPending || !!earlyBuzz;
           status.textContent = earlyBuzz ? 'ZU FRÜH GEBUZZERT!' : 'Warte auf den Host …';
           status.className = earlyBuzz ? 'status early' : 'status closed';
           const penaltyText = earlyBuzz && state.earlyBuzzPenaltySeconds > 0 ? ` · Sperre: ${formatNumber(state.earlyBuzzPenaltySeconds)} s` : '';
-          $('playerResult').textContent = me ? `${playerSummary(me)}${penaltyText}` : '';
+          $('playerResult').textContent = penaltyText ? penaltyText.replace(/^ · /,'') : '';
         } else {
           buzzer.disabled = true;
           status.textContent = 'Runde ist gesperrt';
           status.className = 'status closed';
-          $('playerResult').textContent = me ? playerSummary(me) : '';
+          $('playerResult').textContent = '';
         }
         if (state.globalBuzzerLocked || manualLock || myBuzz || (state.roundOpen && remainingMs > 0) || (!state.roundOpen && state.roundStart !== null)) {
           buzzer.disabled = true;
