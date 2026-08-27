@@ -393,6 +393,136 @@
     }
     #playerView #playerChatShell { width:100% !important; margin:16px 0 0 !important; }
 
+
+    /* FINALER BUZZER-SHAPE-FIX: echter runder Gameshow-Buzzer */
+    #playerView button#buzzer.buzzer {
+      width:min(62vw, 360px) !important;
+      height:min(62vw, 360px) !important;
+      min-width:260px !important;
+      min-height:260px !important;
+      max-width:360px !important;
+      max-height:360px !important;
+      aspect-ratio:1 / 1 !important;
+      border-radius:50% !important;
+      padding:34px !important;
+      flex:0 0 auto !important;
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      overflow:hidden !important;
+      box-sizing:border-box !important;
+      box-shadow:
+        inset 0 18px 28px rgba(255,255,255,.22),
+        inset 0 -28px 34px rgba(0,0,0,.34),
+        0 14px 0 rgba(0,0,0,.34),
+        0 22px 34px rgba(0,0,0,.38) !important;
+    }
+    #playerView button#buzzer.buzzer:not(:disabled):active {
+      transform:translateY(7px) !important;
+      box-shadow:
+        inset 0 12px 28px rgba(0,0,0,.22),
+        0 7px 0 rgba(0,0,0,.34),
+        0 13px 22px rgba(0,0,0,.30) !important;
+    }
+    #playerView button#buzzer.buzzer .buzzer-state-label {
+      width:100% !important;
+      text-align:center !important;
+      font-size:clamp(22px,4.5vw,40px) !important;
+      line-height:1.05 !important;
+      overflow-wrap:anywhere !important;
+    }
+    @media(max-width:520px) {
+      #playerView button#buzzer.buzzer {
+        width:min(76vw,320px) !important;
+        height:min(76vw,320px) !important;
+        min-width:230px !important;
+        min-height:230px !important;
+      }
+    }
+
+
+    /* FINAL: Login-Aktionen wieder nebeneinander */
+    #joinView .controls,
+    #hostLoginView .controls {
+      display:flex !important;
+      flex-direction:row !important;
+      flex-wrap:nowrap !important;
+      align-items:center !important;
+      justify-content:flex-start !important;
+      gap:10px !important;
+      width:100% !important;
+    }
+
+    #joinView .controls input,
+    #joinView .controls select,
+    #hostLoginView .controls input,
+    #hostLoginView .controls select {
+      flex:1 1 auto !important;
+      width:auto !important;
+      min-width:0 !important;
+      margin:0 !important;
+      box-sizing:border-box !important;
+    }
+
+    #joinView .controls button,
+    #hostLoginView .controls button {
+      flex:0 0 auto !important;
+      width:auto !important;
+      min-width:max-content !important;
+      margin:0 !important;
+      box-sizing:border-box !important;
+    }
+
+    /* FINAL: echter kreisrunder Gameshow-Buzzer */
+    #playerView button#buzzer.buzzer {
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      box-sizing:border-box !important;
+
+      width:340px !important;
+      height:340px !important;
+      min-width:340px !important;
+      min-height:340px !important;
+      max-width:340px !important;
+      max-height:340px !important;
+
+      padding:36px !important;
+      border-radius:9999px !important;
+      overflow:hidden !important;
+      flex:none !important;
+
+      box-shadow:
+        inset 0 20px 28px rgba(255,255,255,.20),
+        inset 0 -30px 36px rgba(0,0,0,.34),
+        0 14px 0 rgba(0,0,0,.34),
+        0 22px 34px rgba(0,0,0,.38) !important;
+    }
+
+    #playerView button#buzzer.buzzer .buzzer-state-label {
+      display:block !important;
+      width:100% !important;
+      text-align:center !important;
+      line-height:1.05 !important;
+      overflow-wrap:anywhere !important;
+    }
+
+    @media (max-width:520px) {
+      #playerView button#buzzer.buzzer {
+        width:270px !important;
+        height:270px !important;
+        min-width:270px !important;
+        min-height:270px !important;
+        max-width:270px !important;
+        max-height:270px !important;
+      }
+
+      #joinView .controls,
+      #hostLoginView .controls {
+        gap:7px !important;
+      }
+    }
+
 </style>
 </head>
 <body>

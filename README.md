@@ -2,7 +2,9 @@
 
 Dieses Update enthält:
 
-- 4 Fixes
+- robustere, automatische Speicherung des kompletten Host-Layouts (Tabs, Panel-Kopien, Positionen, Größen, minimiert/ausgeblendet und Layout-Sperre) im Browser, inklusive Backup und Migration der bisherigen Layout-Daten;
+- Host-Passwortschutz;
+- Spieler-kicken-Funktion in der Spielerverwaltung.
 
 ## Host-Passwort
 
