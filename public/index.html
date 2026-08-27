@@ -523,6 +523,81 @@
       }
     }
 
+
+    /* FINAL: tatsächliche Login-Bereiche */
+    #playerSetup .controls,
+    #hostLogin .controls {
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
+      gap:12px !important;
+      width:100% !important;
+      align-items:stretch !important;
+    }
+
+    #playerSetup .controls > button,
+    #hostLogin .controls > button {
+      display:block !important;
+      width:100% !important;
+      min-width:0 !important;
+      max-width:none !important;
+      margin:0 !important;
+      box-sizing:border-box !important;
+    }
+
+    /* FINAL: kreisrunder, anklickbarer Gameshow-Buzzer */
+    #playerView button#buzzer.buzzer {
+      position:relative !important;
+      z-index:2 !important;
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      width:320px !important;
+      height:320px !important;
+      min-width:320px !important;
+      min-height:320px !important;
+      max-width:320px !important;
+      max-height:320px !important;
+      aspect-ratio:1/1 !important;
+      border-radius:50% !important;
+      padding:34px !important;
+      margin:20px auto 0 !important;
+      box-sizing:border-box !important;
+      flex:none !important;
+      overflow:hidden !important;
+      pointer-events:auto !important;
+    }
+
+    #playerView button#buzzer.buzzer .buzzer-state-label {
+      display:block !important;
+      width:100% !important;
+      text-align:center !important;
+      line-height:1.08 !important;
+      pointer-events:none !important;
+      overflow-wrap:anywhere !important;
+    }
+
+    #playerView #playerChatShell {
+      position:relative !important;
+      z-index:1 !important;
+      width:100% !important;
+      margin:18px 0 0 !important;
+    }
+
+    @media(max-width:500px) {
+      #playerView button#buzzer.buzzer {
+        width:260px !important;
+        height:260px !important;
+        min-width:260px !important;
+        min-height:260px !important;
+        max-width:260px !important;
+        max-height:260px !important;
+      }
+      #playerSetup .controls,
+      #hostLogin .controls {
+        gap:8px !important;
+      }
+    }
+
 </style>
 </head>
 <body>
@@ -564,7 +639,7 @@
       <div id="playerAnswerTimer" class="answer-timer-player hidden"><div class="small">Antwortzeit <span id="playerAnsweringName"></span></div><div id="playerAnswerTimerValue" class="timer-number">0.0 s</div></div>
       <div id="playerStatus" class="status closed">Warte auf den Host …</div>
       <div id="playerMessages" class="hidden"></div>
-      <button id="buzzer" class="buzzer" disabled><span id="buzzerStateLabel" class="buzzer-state-label">INAKTIV</span></button>
+      <button id="buzzer" class="buzzer" disabled type="button"><span id="buzzerStateLabel" class="buzzer-state-label">INAKTIV</span></button>
           
           <p id="playerResult" class="status player-result-hidden"></p>
       <div id="playerChatNotice" class="player-chat-notice hidden" role="status" aria-live="polite" tabindex="0">
@@ -1244,24 +1319,33 @@
 
     function buzz() {
       if (role !== 'player' || buzzPending) return;
-      const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
+
+      const me = (state.players || []).find(p => p.id === socket.id);
+      const myBuzz = (state.buzzes || []).find(b => b.socketId === socket.id);
+
       if (myBuzz) return;
-      const me = state.players.find(p => p.id === socket.id);
-      if (state.roundOpen && me && playerLockRemaining(me) > 0) return;
+      if (state.globalBuzzerLocked) return;
       if (me && isBuzzerManuallyLocked(me)) return;
+      if (state.roundOpen && me && playerLockRemaining(me) > 0) return;
       if (!state.roundOpen && state.roundStart !== null) return;
+
       ensureAudio();
       buzzPending = true;
       $('buzzer').classList.add('keyboard-pressed');
       setTimeout(() => $('buzzer').classList.remove('keyboard-pressed'), 100);
+
       socket.emit('buzz');
-      setTimeout(() => { buzzPending = false; render(); }, 800);
+
+      setTimeout(() => {
+        buzzPending = false;
+        render();
+      }, 650);
     }
 
     $('joinButton').onclick = join;
     $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
-$('buzzer').onclick = buzz;
-    $('togglePlayerChat').onclick = () => {
+    $('buzzer').onclick = buzz;
+$('togglePlayerChat').onclick = () => {
       const shell=$('playerChatShell');
       shell.classList.toggle('collapsed');
       $('togglePlayerChat').textContent=shell.classList.contains('collapsed')?'Chat öffnen':'Minimieren';
@@ -1683,15 +1767,22 @@ $('buzzer').onclick = buzz;
     }
 
     function updateBuzzerStateLabel() {
-      const label=$('buzzerStateLabel');
-      if(!label) return;
-      const me=(state.players||[]).find(p=>p.id===socket.id);
-      const team=me && state.teams ? state.teams.find(t=>t.id===me.teamId) : null;
-      const texts=currentBuzzerTexts();
-      const locked=!!state.globalBuzzerLocked || !!(me&&me.buzzerLocked) || !!(team&&team.buzzerLocked);
-      if(locked) label.textContent=texts.locked;
-      else if(state.roundOpen && !(me&&me.buzzed)) label.textContent=texts.active;
-      else label.textContent=texts.inactive;
+      const label = $('buzzerStateLabel');
+      const buzzer = $('buzzer');
+      if (!label || !buzzer) return;
+
+      const me = (state.players || []).find(p => p.id === socket.id);
+      const myTeam = me && state.teams ? state.teams.find(t => t.id === me.teamId) : null;
+      const texts = currentBuzzerTexts();
+
+      const explicitlyLocked =
+        !!state.globalBuzzerLocked ||
+        !!(me && me.buzzerLocked) ||
+        !!(myTeam && myTeam.buzzerLocked);
+
+      if (explicitlyLocked) label.textContent = texts.locked;
+      else if (state.roundOpen && !buzzer.disabled) label.textContent = texts.active;
+      else label.textContent = texts.inactive;
     }
 
     function render() {
@@ -1770,6 +1861,11 @@ $('buzzer').onclick = buzz;
           status.textContent = 'Runde ist gesperrt';
           status.className = 'status closed';
           $('playerResult').textContent = me ? playerSummary(me) : '';
+        }
+        if (state.globalBuzzerLocked || manualLock || myBuzz || (state.roundOpen && remainingMs > 0) || (!state.roundOpen && state.roundStart !== null)) {
+          buzzer.disabled = true;
+        } else if (state.roundOpen) {
+          buzzer.disabled = !!buzzPending;
         }
         updateBuzzerStateLabel();
       }
