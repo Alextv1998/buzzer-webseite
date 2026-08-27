@@ -367,7 +367,33 @@
     }
     #playerView #playerChatNotice { margin:14px 0 0; }
 
-  </style>
+  
+    /* Gesammelte UI-Fixes */
+    #joinView .controls, #hostLoginView .controls {
+      display:flex !important; flex-direction:column !important;
+      align-items:stretch !important; gap:10px !important; width:100% !important;
+    }
+    #joinView .controls input, #joinView .controls select, #joinView .controls button,
+    #hostLoginView .controls input, #hostLoginView .controls select, #hostLoginView .controls button {
+      width:100% !important; box-sizing:border-box !important; margin:0 !important;
+    }
+    .player-result-hidden { display:none !important; }
+    #playerView .buzzer {
+      width:min(78vw,430px) !important; min-height:190px !important;
+      border-radius:50% / 34% !important; padding:30px 38px !important;
+      display:flex !important; align-items:center !important; justify-content:center !important;
+      text-align:center !important;
+      box-shadow:inset 0 10px 18px rgba(255,255,255,.20),
+                 inset 0 -18px 25px rgba(0,0,0,.32),
+                 0 12px 0 rgba(0,0,0,.32),0 18px 30px rgba(0,0,0,.35) !important;
+    }
+    #playerView .buzzer-state-label {
+      font-size:clamp(24px,5vw,44px) !important; line-height:1.08 !important;
+      letter-spacing:.04em !important; max-width:100%; overflow-wrap:anywhere;
+    }
+    #playerView #playerChatShell { width:100% !important; margin:16px 0 0 !important; }
+
+</style>
 </head>
 <body>
   <main class="wrap">
@@ -408,9 +434,9 @@
       <div id="playerAnswerTimer" class="answer-timer-player hidden"><div class="small">Antwortzeit <span id="playerAnsweringName"></span></div><div id="playerAnswerTimerValue" class="timer-number">0.0 s</div></div>
       <div id="playerStatus" class="status closed">Warte auf den Host …</div>
       <div id="playerMessages" class="hidden"></div>
-      <button id="buzzer" class="buzzer" disabled><span class="buzzer-main-label">BUZZ!</span><span id="buzzerStateLabel" class="buzzer-state-label">INAKTIV</span></button>
-          <div class="hint">Klick auf den Buzzer oder drücke die <strong>Leertaste</strong>.</div>
-          <p id="playerResult" class="status"></p>
+      <button id="buzzer" class="buzzer" disabled><span id="buzzerStateLabel" class="buzzer-state-label">INAKTIV</span></button>
+          
+          <p id="playerResult" class="status player-result-hidden"></p>
       <div id="playerChatNotice" class="player-chat-notice hidden" role="status" aria-live="polite" tabindex="0">
         <span id="playerChatNoticeText">Neue Nachricht</span>
         <span id="playerChatNoticeCount" class="notice-count">1</span>
@@ -1527,31 +1553,15 @@ $('buzzer').onclick = buzz;
     }
 
     function updateBuzzerStateLabel() {
-      const label = $('buzzerStateLabel');
-      const buzzer = $('buzzer');
-      if (!label || !buzzer) return;
-
-      const me = (state.players || []).find(p => p.id === socket.id);
-      const myTeam = me && state.teams ? state.teams.find(t => t.id === me.teamId) : null;
-      const texts = currentBuzzerTexts();
-
-      const manualLock = !!(me && me.buzzerLocked) || !!(myTeam && myTeam.buzzerLocked);
-      const hostLock = !!state.globalBuzzerLocked;
-
-      // LOCKED ist ausschließlich ein echter Sperrzustand:
-      // Host hat "Buzzer sperren" gedrückt oder Spieler/Team ist manuell gesperrt.
-      if (hostLock || manualLock) {
-        label.textContent = texts.locked;
-        return;
-      }
-
-      // AKTIV nur dann, wenn dieser Spieler JETZT tatsächlich buzzern kann.
-      const canBuzzNow =
-        !!state.roundOpen &&
-        !buzzer.disabled &&
-        !buzzPending;
-
-      label.textContent = canBuzzNow ? texts.active : texts.inactive;
+      const label=$('buzzerStateLabel');
+      if(!label) return;
+      const me=(state.players||[]).find(p=>p.id===socket.id);
+      const team=me && state.teams ? state.teams.find(t=>t.id===me.teamId) : null;
+      const texts=currentBuzzerTexts();
+      const locked=!!state.globalBuzzerLocked || !!(me&&me.buzzerLocked) || !!(team&&team.buzzerLocked);
+      if(locked) label.textContent=texts.locked;
+      else if(state.roundOpen && !(me&&me.buzzed)) label.textContent=texts.active;
+      else label.textContent=texts.inactive;
     }
 
     function render() {
