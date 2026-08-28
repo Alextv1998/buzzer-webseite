@@ -1,49 +1,76 @@
 # #Musiklex Online-Buzzer – aktueller Stand
 
-Diese Version enthält eine vollständig bereinigte Spieleransicht.
+Diese Version enthält den separaten Bereich **„Antwort“** im Nachrichtenfenster.
+
+## Nachrichten beim Spieler
+
+Der Nachrichtenbereich hat jetzt drei Tabs:
+
+1. **Privat mit Host** – normaler 1:1-Chat
+2. **Teamchat** – Chat innerhalb des eigenen Teams
+3. **Antwort** – geheime Antwort einloggen
+
+### Antwort einloggen
+
+„Antwort“ ist ausdrücklich **kein Chat**.
+
+- Ein Spieler gibt eine Antwort ein und klickt auf **„Antwort einloggen“**.
+- Gehört der Spieler zu einem Team, gilt die Antwort für das **gesamte Team**.
+- Pro Team kann nur **eine** Antwort eingeloggt werden.
+- Spieler ohne Team haben einen eigenen Antwortplatz.
+- Nach dem Absenden sieht das Team nur noch **„Antwort eingeloggt ✓“**.
+- Die Antwort kann danach nicht geändert werden.
+- Erst wenn der Host **„Antworten zurücksetzen“** nutzt, kann eine neue Antwort eingegeben werden.
+- Sobald der Host Antworten aufgedeckt hat, sind weitere Eingaben bis zum Reset gesperrt.
+
+Damit eignet sich die Funktion für Blindwahlen, geheime Tipps, Entscheidungen und ähnliche Spielmechaniken.
+
+## Host – Chat-Zentrale
+
+Die alte Option **„Antwortmodus / Geheime Antwort“** wurde vollständig aus dem normalen Host-Chat entfernt.
+
+Der normale Host-Chat enthält nur noch:
+
+- Privatchat
+- Teamchat
+
+Darunter gibt es einen eigenen Bereich **„Antworten“**.
+
+Vor dem Aufdecken sieht der Host nur:
+
+- welches Team / welcher Spieler einen Antwortplatz hat
+- ob bereits eine Antwort eingeloggt wurde
+- wer sie eingeloggt hat
+
+Der tatsächliche Inhalt wird noch nicht übertragen bzw. angezeigt.
+
+Mit **„Antworten aufdecken“** werden alle eingeloggen Antworten gleichzeitig sichtbar.
+
+Mit **„Antworten zurücksetzen“** werden alle Antworten gelöscht und eine neue Blindrunde kann beginnen.
 
 ## Spieleransicht
 
-Die Reihenfolge ist jetzt:
+Die bestehende Reihenfolge bleibt erhalten:
 
 1. Spiel-/Rundenstatus
-2. ein einzelner, kreisrunder Gameshow-Buzzer
-3. persönliche Punkte und Teampunkte direkt unter dem Buzzer
-4. ggf. Buzz-Platzierung / Reaktionszeit
+2. kreisrunder Gameshow-Buzzer
+3. persönliche Punkte und Teampunkte
+4. ggf. Buzz-Ergebnis / Reaktionszeit
 5. Chat-Benachrichtigung
-6. Chat
+6. Nachrichtenbereich
 7. optionale Team-Tribüne
 8. optionale Buzz-Reihenfolge
 
-Auf dem Buzzer steht ausschließlich der vom Host definierte Zustandstext.
+## Buzzer
 
-Die Punkteanzeige bleibt dauerhaft sichtbar und zeigt:
-- `Punkte: <Spielerpunkte>`
-- zusätzlich `<Teamname>: <Teampunkte> Teampunkte`, wenn der Spieler einem Team angehört
+Auf dem Buzzer steht ausschließlich der im Host-Panel definierte Zustandstext:
 
-## Chat
-
-Es gibt:
-- Privat-Chat Spieler ↔ Host
-- Teamchat
-- Spieler-Benachrichtigungen
-- Antwortmodus
-
-Im Antwortmodus werden Nachrichten beim Host mit `ANTWORT:` markiert.
-
-## Buzzer-Zustände
-
-Die drei Zustandstexte können im Host-Panel „Buzzer-Texte“ frei bearbeitet werden:
 - Aktiv
 - Inaktiv
 - Gesperrt
 
-„Buzzer sperren“ ist ein globaler Sperrzustand. Einzelne Spieler und Teams können zusätzlich separat gesperrt werden.
-
 ## Persistenz
 
-Gespeichert werden unter anderem Teams, Teamfarben, Teamreihenfolge, Spieler-Team-Zuordnungen, Buzzer-Sperren, Layout/Tabs/Panelgrößen und die frei definierten Buzzer-Texte.
+Teams, Teamfarben, Spieler-Team-Zuordnungen, Buzzer-Texte und Host-Layout werden wie bisher gespeichert.
 
-## Reparatur in dieser Version
-
-Der beschädigte sichtbare HTML-Text `h>Zeit … Abstand zu #1` wurde vollständig entfernt. Die dafür nötigen Bereiche „Buzz-Reihenfolge“ und „Team-Tribüne“ wurden korrekt wiederhergestellt.
+**Antworten selbst werden absichtlich nur für die laufende Server-Session gehalten** und nicht dauerhaft gespeichert.

@@ -1,7 +1,5 @@
 # Einrichtung und Start
 
-## Lokal
-
 1. Node.js installieren.
 2. ZIP entpacken.
 3. Im Projektordner `npm install` ausführen.
@@ -9,10 +7,21 @@
 
 Standardmäßig läuft der Server auf Port 3000.
 
-## Bestehendes Hosting aktualisieren
+## Update eines bestehenden Hostings
 
-Die aktuellen Dateien `server.js` und `public/index.html` übernehmen. Den Ordner `public/sounds` beibehalten.
+Die Dateien aus diesem Paket übernehmen, insbesondere:
 
-## Browser-Backups
+- `server.js`
+- `public/index.html`
+- `public/sounds/`
 
-Einige Host-Einstellungen besitzen zusätzlich ein lokales Browser-Backup. Für bestehende Layout- und Team-Backups möglichst dasselbe Browserprofil verwenden.
+## Neuer Antwortbereich testen
+
+1. Host und mindestens einen Spieler öffnen.
+2. Spieler öffnet Nachrichten → **Antwort**.
+3. Antwort eingeben und **Antwort einloggen**.
+4. Beim Host muss zunächst nur **„Antwort eingeloggt ✓“** erscheinen.
+5. Host klickt **„Antworten aufdecken“**.
+6. Erst jetzt wird der Inhalt sichtbar.
+7. Host klickt **„Antworten zurücksetzen“**.
+8. Danach kann erneut eine Antwort eingeloggt werden.

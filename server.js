@@ -133,8 +133,7 @@ function loadTeamState() {
 let chatMessages = [];
 let chatSettings = {
   privateEnabled: true,
-  teamEnabled: true,
-  answerModeEnabled: false
+  teamEnabled: true
 };
 const MAX_CHAT_MESSAGES = 1000;
 
@@ -179,6 +178,129 @@ function broadcastChatStates() {
 function addChatMessage(message) {
   chatMessages.push(message);
   trimChatHistory();
+}
+
+
+// Separates Antwortsystem.
+// Antworten sind KEINE Chatnachrichten. Pro Team (oder unzugeordnetem Spieler)
+// kann genau eine Antwort eingeloggt werden. Danach ist sie bis zum Host-Reset gesperrt.
+let answerSubmissions = new Map();
+let answersRevealed = false;
+
+function answerKeyForPlayer(player) {
+  if (!player) return '';
+  if (player.teamId && getTeam(player.teamId)) return `team:${player.teamId}`;
+  return `player:${player.id}`;
+}
+
+function answerLabelForPlayer(player) {
+  if (!player) return '';
+  const team = player.teamId ? getTeam(player.teamId) : null;
+  return team ? `Team · ${team.name}` : `Spieler · ${player.name}`;
+}
+
+function answerColorForPlayer(player) {
+  if (!player) return '#777';
+  const team = player.teamId ? getTeam(player.teamId) : null;
+  return team?.color || '#777';
+}
+
+function answerPayloadForPlayer(player) {
+  const key = answerKeyForPlayer(player);
+  const item = key ? answerSubmissions.get(key) : null;
+  return {
+    key,
+    label: answerLabelForPlayer(player),
+    submitted: Boolean(item),
+    revealed: answersRevealed
+  };
+}
+
+function answerRosterForHost() {
+  const entries = [];
+  const activeTeamIds = new Set();
+
+  for (const player of connectedPlayers.values()) {
+    if (player.teamId && getTeam(player.teamId)) activeTeamIds.add(player.teamId);
+  }
+
+  // Teams mit aktuell verbundenen Spielern oder bereits abgegebener Antwort.
+  for (const team of teams) {
+    const key = `team:${team.id}`;
+    const item = answerSubmissions.get(key);
+    if (!activeTeamIds.has(team.id) && !item) continue;
+    entries.push({
+      key,
+      type: 'team',
+      id: team.id,
+      label: `Team · ${team.name}`,
+      color: team.color || '#777',
+      submitted: Boolean(item),
+      submittedBy: item?.submittedBy || '',
+      submittedAt: item?.submittedAt || null,
+      answer: answersRevealed && item ? item.answer : null
+    });
+  }
+
+  // Spieler ohne Team bekommen einen eigenen Antwortplatz.
+  for (const player of connectedPlayers.values()) {
+    if (player.teamId && getTeam(player.teamId)) continue;
+    const key = `player:${player.id}`;
+    const item = answerSubmissions.get(key);
+    entries.push({
+      key,
+      type: 'player',
+      id: player.id,
+      label: `Spieler · ${player.name}`,
+      color: '#777',
+      submitted: Boolean(item),
+      submittedBy: item?.submittedBy || '',
+      submittedAt: item?.submittedAt || null,
+      answer: answersRevealed && item ? item.answer : null
+    });
+  }
+
+  // Bereits abgegebene Einzelantworten nach Disconnect sichtbar halten.
+  for (const [key, item] of answerSubmissions.entries()) {
+    if (!key.startsWith('player:')) continue;
+    if (entries.some(e => e.key === key)) continue;
+    entries.push({
+      key,
+      type: 'player',
+      id: item.playerId || '',
+      label: item.label || `Spieler · ${item.submittedBy || 'Unbekannt'}`,
+      color: item.color || '#777',
+      submitted: true,
+      submittedBy: item.submittedBy || '',
+      submittedAt: item.submittedAt || null,
+      answer: answersRevealed ? item.answer : null
+    });
+  }
+
+  return {
+    revealed: answersRevealed,
+    submittedCount: entries.filter(e => e.submitted).length,
+    totalCount: entries.length,
+    entries
+  };
+}
+
+function emitAnswerStateToPlayer(socketId) {
+  const player = connectedPlayers.get(socketId);
+  if (player) io.to(socketId).emit('player-answer-state', answerPayloadForPlayer(player));
+}
+
+function emitAnswerStateToHostSocket(socket) {
+  if (socket?.data?.isHost) socket.emit('host-answer-state', answerRosterForHost());
+}
+
+function broadcastAnswerStates() {
+  for (const player of connectedPlayers.values()) {
+    emitAnswerStateToPlayer(player.id);
+  }
+  for (const [, hostSocket] of io.sockets.sockets) {
+    if (hostSocket.data?.isHost) emitAnswerStateToHostSocket(hostSocket);
+  }
 }
 
 function cleanName(value, fallback = '') {
@@ -235,6 +357,7 @@ function publicState() {
 
 function broadcastState() {
   io.emit('state', publicState());
+  broadcastAnswerStates();
 }
 
 function cleanMessage(value) {
@@ -257,7 +380,10 @@ io.on('connection', (socket) => {
     const ok = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
     socket.data.isHost = ok;
     socket.emit('host-auth-result', { ok });
-    if (ok) emitChatStateToHostSocket(socket);
+    if (ok) {
+      emitChatStateToHostSocket(socket);
+      emitAnswerStateToHostSocket(socket);
+    }
   });
 
   socket.emit('state', publicState());
@@ -280,6 +406,7 @@ io.on('connection', (socket) => {
     saveTeamState();
     broadcastState();
     emitChatStateToPlayer(socket.id);
+    emitAnswerStateToPlayer(socket.id);
   });
 
   socket.on('buzz', () => {
@@ -520,7 +647,7 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  socket.on('player-chat-send', ({ channel, message, isAnswer }) => {
+  socket.on('player-chat-send', ({ channel, message }) => {
     const player = connectedPlayers.get(socket.id);
     const text = cleanMessage(message);
     if (!player || !text) return;
@@ -534,7 +661,7 @@ io.on('connection', (socket) => {
       const item = {
         id: chatMessageId(), scope: 'private', playerId: player.id,
         senderType: 'player', senderId: player.id, senderName: player.name,
-        message: text, sentAt: Date.now(), isAnswer: Boolean(isAnswer && chatSettings.answerModeEnabled)
+        message: text, sentAt: Date.now()
       };
       addChatMessage(item);
       socket.emit('chat-message-sent', item);
@@ -560,7 +687,7 @@ io.on('connection', (socket) => {
       const item = {
         id: chatMessageId(), scope: 'team', teamId: player.teamId,
         senderType: 'player', senderId: player.id, senderName: player.name,
-        message: text, sentAt: Date.now(), isAnswer: false
+        message: text, sentAt: Date.now()
       };
       addChatMessage(item);
       for (const teammate of connectedPlayers.values()) {
@@ -590,7 +717,7 @@ io.on('connection', (socket) => {
       const item = {
         id: chatMessageId(), scope: 'private', playerId: player.id,
         senderType: 'host', senderId: 'host', senderName: 'Host',
-        message: text, sentAt: Date.now(), isAnswer: false
+        message: text, sentAt: Date.now()
       };
       addChatMessage(item);
       io.to(player.id).emit('chat-new-message', item);
@@ -606,7 +733,7 @@ io.on('connection', (socket) => {
       const item = {
         id: chatMessageId(), scope: 'team', teamId: team.id,
         senderType: 'host', senderId: 'host', senderName: 'Host',
-        message: text, sentAt: Date.now(), isAnswer: false
+        message: text, sentAt: Date.now()
       };
       addChatMessage(item);
       for (const player of connectedPlayers.values()) {
@@ -620,10 +747,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('host-chat-settings', ({ privateEnabled, teamEnabled, answerModeEnabled }) => {
+  socket.on('host-chat-settings', ({ privateEnabled, teamEnabled }) => {
     chatSettings.privateEnabled = Boolean(privateEnabled);
     chatSettings.teamEnabled = Boolean(teamEnabled);
-    chatSettings.answerModeEnabled = Boolean(answerModeEnabled);
     broadcastChatStates();
   });
 
@@ -633,6 +759,52 @@ io.on('connection', (socket) => {
     if (type === 'private') chatMessages = chatMessages.filter(m => !(m.scope === 'private' && m.playerId === id));
     if (type === 'team') chatMessages = chatMessages.filter(m => !(m.scope === 'team' && m.teamId === id));
     broadcastChatStates();
+  });
+
+
+  socket.on('player-answer-submit', ({ answer }) => {
+    const player = connectedPlayers.get(socket.id);
+    const text = cleanMessage(answer);
+    if (!player || !text) return;
+
+    if (answersRevealed) {
+      socket.emit('answer-submit-error', { message: 'Die Antworten wurden bereits aufgedeckt. Der Host muss sie zuerst zurücksetzen.' });
+      return;
+    }
+
+    const key = answerKeyForPlayer(player);
+    if (!key) return;
+
+    if (answerSubmissions.has(key)) {
+      socket.emit('answer-submit-error', { message: 'Für dein Team wurde bereits eine Antwort eingeloggt.' });
+      emitAnswerStateToPlayer(socket.id);
+      return;
+    }
+
+    answerSubmissions.set(key, {
+      key,
+      answer: text,
+      submittedAt: Date.now(),
+      submittedBy: player.name,
+      playerId: player.id,
+      teamId: player.teamId || '',
+      label: answerLabelForPlayer(player),
+      color: answerColorForPlayer(player)
+    });
+
+    broadcastAnswerStates();
+  });
+
+  socket.on('host-answers-reveal', () => {
+    if (!answerSubmissions.size) return;
+    answersRevealed = true;
+    broadcastAnswerStates();
+  });
+
+  socket.on('host-answers-reset', () => {
+    answerSubmissions.clear();
+    answersRevealed = false;
+    broadcastAnswerStates();
   });
 
   socket.on('host-send-message', ({ message, playerIds, teamIds, allPlayers }) => {

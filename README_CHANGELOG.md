@@ -1,15 +1,35 @@
-# Änderungsprotokoll dieses Pakets
+# Änderungsprotokoll
 
-- sichtbaren kaputten Text `h>Zeit … Abstand zu #1` entfernt
-- vollständige Buzz-Reihenfolge wiederhergestellt
-- Team-Tribüne wiederhergestellt
-- persönliche Punkte dauerhaft direkt unter dem Buzzer
-- Teampunkte dauerhaft direkt unter dem Buzzer
-- Buzz-Platzierung/Reaktionszeit von der Punkteanzeige getrennt
-- Chat bleibt unter dem Buzzer
-- genau ein kreisrunder Buzzer
-- Login-Buttons für Spieler und Host jeweils nebeneinander
-- alle wichtigen DOM-IDs auf genau ein Vorkommen geprüft
-- JavaScript mit `node --check` geprüft
+## Neuer separater Antwortbereich
+
+- dritter Spieler-Tab **„Antwort“** hinzugefügt
+- Antworten sind vom normalen Chat getrennt
+- pro Team genau eine eingeloggte Antwort
+- Spieler ohne Team haben einen eigenen Antwortplatz
+- nach Absenden: **„Antwort eingeloggt ✓“**
+- Antworten können bis zum Host-Reset nicht geändert werden
+- nach dem Aufdecken keine verspäteten Antworten mehr möglich
+- Host sieht vor dem Aufdecken nur den Abgabestatus
+- **„Antworten aufdecken“** zeigt alle Inhalte gleichzeitig
+- **„Antworten zurücksetzen“** startet eine neue Antwortrunde
+
+## Host-Chat bereinigt
+
+- alte Option **„Antwortmodus / Geheime Antwort“** entfernt
+- normale Chatnachrichten werden nicht mehr als Antwort markiert
+- Privatchat und Teamchat bleiben unverändert
+
+## Bestehende Funktionen
+
+- kreisrunder Buzzer bleibt erhalten
+- Punkte und Teampunkte bleiben direkt unter dem Buzzer
+- Spieler- und Team-Buzzersperren bleiben erhalten
+- Chat-Benachrichtigungen bleiben erhalten
+- Team-Persistenz und Layout-Persistenz bleiben erhalten
+
+## Prüfungen
+
 - `server.js` mit `node --check` geprüft
-- alte, widersprüchliche README-Zwischenstände entfernt und Dokumentation neu geschrieben
+- eingebettetes Browser-JavaScript mit `node --check` geprüft
+- neue DOM-IDs auf Eindeutigkeit geprüft
+- alle alten `answerModeEnabled`-/`answerModeBox`-Referenzen entfernt

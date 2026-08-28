@@ -165,15 +165,12 @@
     .chat-log { height:220px; overflow:auto; display:flex; flex-direction:column; gap:8px; padding:9px; border:1px solid rgba(255,255,255,.08); border-radius:12px; background:#0c111a; }
     .chat-line { max-width:88%; padding:8px 10px; border-radius:11px; background:#202838; overflow-wrap:anywhere; }
     .chat-line.mine { margin-left:auto; background:#59301b; }
-    .chat-line.answer { outline:2px solid #f1c40f; background:#473c13; }
     .chat-line .chat-author { font-size:11px; font-weight:800; color:#ffad66; margin-bottom:3px; }
     .chat-line .chat-time { font-size:10px; color:var(--muted); margin-top:4px; }
     .chat-compose { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; margin-top:9px; }
     .chat-compose input { min-width:0; }
     .chat-compose button { white-space:nowrap; }
     .chat-disabled { padding:9px 10px; border-radius:10px; background:#3d2020; color:#ffb7b2; margin-bottom:8px; font-size:13px; }
-    .answer-mode-box { margin:0 0 10px; padding:10px; border:1px solid #756319; border-radius:11px; background:rgba(241,196,15,.08); }
-    .answer-mode-box strong { color:#f7dc6f; }
     .host-chat-layout { display:grid; grid-template-columns:210px minmax(0,1fr); gap:10px; min-height:330px; }
     .host-chat-channels { border:1px solid rgba(255,255,255,.08); border-radius:11px; padding:7px; overflow:auto; max-height:420px; }
     .host-chat-channel { width:100%; text-align:left; padding:9px 10px; border-radius:9px; margin-bottom:5px; background:rgba(255,255,255,.035); font-size:12px; }
@@ -679,6 +676,74 @@
       box-sizing:border-box !important;
     }
 
+
+    /* Separater Antwort-Bereich */
+    .answer-entry-panel {
+      margin-top:10px;
+      padding:14px;
+      border:1px solid rgba(241,196,15,.35);
+      border-radius:14px;
+      background:rgba(241,196,15,.07);
+    }
+    .answer-entry-title {
+      font-weight:900;
+      margin-bottom:8px;
+    }
+    .answer-entry-status {
+      margin:8px 0 12px;
+      padding:12px;
+      border-radius:11px;
+      background:rgba(255,255,255,.05);
+      font-weight:750;
+    }
+    .answer-entry-status.logged {
+      border:1px solid rgba(46,204,113,.45);
+      background:rgba(46,204,113,.10);
+    }
+    .host-answers-panel {
+      margin-top:16px;
+      padding-top:16px;
+      border-top:1px solid var(--border);
+    }
+    .host-answers-head {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+    .host-answers-head .controls {
+      margin:0;
+    }
+    .host-answers-list {
+      display:grid;
+      gap:8px;
+    }
+    .host-answer-row {
+      display:grid;
+      grid-template-columns:minmax(150px, 1fr) minmax(180px, 2fr);
+      gap:12px;
+      align-items:start;
+      padding:11px 12px;
+      border:1px solid var(--border);
+      border-left:4px solid #777;
+      border-radius:11px;
+      background:rgba(255,255,255,.035);
+    }
+    .host-answer-row .answer-value {
+      font-weight:800;
+      overflow-wrap:anywhere;
+    }
+    .host-answer-pending {
+      opacity:.62;
+    }
+    @media(max-width:650px) {
+      .host-answer-row {
+        grid-template-columns:1fr;
+      }
+    }
+
 </style>
 </head>
 <body>
@@ -737,14 +802,23 @@
             <button id="togglePlayerChat" class="chat-collapse" type="button">Minimieren</button>
           </div>
           <div class="chat-body">
-            <div id="answerModeBox" class="answer-mode-box hidden"><strong>Antwortmodus aktiv</strong><div class="small">Deine Nachricht im Host-Chat wird als Antwort markiert.</div></div>
             <div class="chat-tabs">
               <button id="playerChatHostTab" class="chat-tab active" type="button">Privat mit Host <span id="playerHostUnread" class="chat-badge hidden">0</span></button>
               <button id="playerChatTeamTab" class="chat-tab" type="button">Teamchat <span id="playerTeamUnread" class="chat-badge hidden">0</span></button>
+              <button id="playerChatAnswerTab" class="chat-tab" type="button">Antwort</button>
             </div>
             <div id="playerChatDisabled" class="chat-disabled hidden"></div>
             <div id="playerChatLog" class="chat-log"></div>
-            <div class="chat-compose"><input id="playerChatInput" maxlength="500" placeholder="Nachricht schreiben …"><button id="playerChatSend" type="button">Senden</button></div>
+            <div id="playerChatCompose" class="chat-compose"><input id="playerChatInput" maxlength="500" placeholder="Nachricht schreiben …"><button id="playerChatSend" type="button">Senden</button></div>
+            <div id="playerAnswerPanel" class="answer-entry-panel hidden">
+              <div class="answer-entry-title">Geheime Antwort einloggen</div>
+              <div id="playerAnswerStatus" class="answer-entry-status">Noch keine Antwort eingeloggt.</div>
+              <div id="playerAnswerCompose" class="chat-compose">
+                <input id="playerAnswerInput" maxlength="500" autocomplete="off" placeholder="Antwort eingeben …">
+                <button id="playerAnswerSubmit" type="button">Antwort einloggen</button>
+              </div>
+              <div class="small">Nach dem Einloggen kann die Antwort nicht mehr geändert werden, bis der Host die Antworten zurücksetzt.</div>
+            </div>
           </div>
       
       </div>
@@ -865,7 +939,6 @@
           <div class="chat-settings">
             <label><input id="privateChatEnabled" type="checkbox" checked> Privatchat</label>
             <label><input id="teamChatEnabled" type="checkbox" checked> Teamchat</label>
-            <label><input id="answerModeEnabled" type="checkbox"> Antwortmodus</label>
           </div>
           <div class="host-chat-layout">
             <div id="hostChatChannels" class="host-chat-channels"></div>
@@ -874,6 +947,22 @@
               <div id="hostChatLog" class="chat-log host-chat-log"></div>
               <div class="chat-compose"><input id="hostChatInput" maxlength="500" placeholder="Nachricht schreiben …"><button id="hostChatSend" type="button">Senden</button></div>
               <div class="controls" style="margin-top:8px"><button id="clearHostChat" class="host-reset" type="button">Verlauf dieses Chats löschen</button><span id="hostChatStatus" class="small">Privat- und Teamchats sind getrennt.</span></div>
+            </div>
+          </div>
+
+          <div class="host-answers-panel">
+            <div class="host-answers-head">
+              <div>
+                <strong>Antworten</strong>
+                <div id="hostAnswersCounter" class="small">0 / 0 eingeloggt</div>
+              </div>
+              <div class="controls">
+                <button id="revealAnswers" class="small-button" type="button">Antworten aufdecken</button>
+                <button id="resetAnswers" class="host-reset" type="button">Antworten zurücksetzen</button>
+              </div>
+            </div>
+            <div id="hostAnswersList" class="host-answers-list">
+              <div class="small">Noch keine Spieler oder Teams.</div>
             </div>
           </div>
         </section>
@@ -932,8 +1021,10 @@
     function makeTeamBackup(){ const byName={}; (state.players||[]).forEach(p=>{ if(p.name) byName[p.name]=p.teamId||''; }); return {version:2,savedAt:Date.now(),teams:(state.teams||[]).map(t=>({id:t.id,name:t.name,color:t.color,buzzerLocked:!!t.buzzerLocked})),playerTeamsByName:byName}; }
     function saveTeamBackup(){ if(role!=='host' || teamBackupRestorePending) return; try{ const snap=makeTeamBackup(); if(snap.teams.length) localStorage.setItem(TEAM_BACKUP_KEY,JSON.stringify(snap)); }catch(_){} }
     let playerMessages = [];
-    let playerChatState = { settings:{privateEnabled:true,teamEnabled:true,answerModeEnabled:false}, private:[], team:[], teamId:'' };
-    let hostChatState = { settings:{privateEnabled:true,teamEnabled:true,answerModeEnabled:false}, messages:[] };
+    let playerChatState = { settings:{privateEnabled:true,teamEnabled:true}, private:[], team:[], teamId:'' };
+    let hostChatState = { settings:{privateEnabled:true,teamEnabled:true}, messages:[] };
+    let playerAnswerState = { key:'', label:'', submitted:false, revealed:false };
+    let hostAnswerState = { revealed:false, submittedCount:0, totalCount:0, entries:[] };
     let playerChatChannel = 'host';
     let hostChatSelection = { type:'private', id:'' };
     let hostChatUnread = {};
@@ -1452,16 +1543,19 @@ $('togglePlayerChat').onclick = () => {
       $('togglePlayerChat').textContent=shell.classList.contains('collapsed')?'Chat öffnen':'Minimieren';
       if(!shell.classList.contains('collapsed')) {
         if(playerChatChannel==='host') playerChatUnread.host=0;
-        else playerChatUnread.team=0;
+        else if(playerChatChannel==='team') playerChatUnread.team=0;
         renderPlayerChat();
       }
     };
     $('playerChatHostTab').onclick = () => { playerChatChannel='host'; playerChatUnread.host=0; renderPlayerChat(); };
     $('playerChatTeamTab').onclick = () => { playerChatChannel='team'; playerChatUnread.team=0; renderPlayerChat(); };
+    $('playerChatAnswerTab').onclick = () => { playerChatChannel='answer'; renderPlayerChat(); };
     $('playerChatNotice').onclick = () => openUnreadPlayerChat();
     $('playerChatNotice').addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openUnreadPlayerChat(); } });
     $('playerChatSend').onclick = sendPlayerChatMessage;
     $('playerChatInput').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendPlayerChatMessage(); } });
+    $('playerAnswerSubmit').onclick = submitPlayerAnswer;
+    $('playerAnswerInput').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); submitPlayerAnswer(); } });
 
     document.addEventListener('keydown', (e) => {
       if (e.code !== 'Space' || e.repeat || role !== 'player' || playerView.classList.contains('hidden')) return;
@@ -1525,13 +1619,21 @@ $('togglePlayerChat').onclick = () => {
     };
     $('privateChatEnabled').addEventListener('change', sendChatSettings);
     $('teamChatEnabled').addEventListener('change', sendChatSettings);
-    $('answerModeEnabled').addEventListener('change', sendChatSettings);
     $('hostChatSend').onclick = sendHostChatMessage;
     $('hostChatInput').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendHostChatMessage(); } });
     $('clearHostChat').onclick = () => {
       if(!hostChatSelection.id) return;
       if(!confirm('Diesen Chatverlauf wirklich löschen?')) return;
       socket.emit('host-chat-clear',{channelType:hostChatSelection.type,targetId:hostChatSelection.id});
+    };
+    $('revealAnswers').onclick = () => {
+      if(!hostAnswerState.submittedCount || hostAnswerState.revealed) return;
+      socket.emit('host-answers-reveal');
+    };
+    $('resetAnswers').onclick = () => {
+      if(!hostAnswerState.submittedCount && !hostAnswerState.revealed) return;
+      if(!confirm('Alle eingeloggen Antworten wirklich zurücksetzen?')) return;
+      socket.emit('host-answers-reset');
     };
     $('pointValue').addEventListener('keydown', e => {
       if (e.key === 'Enter') socket.emit('host-set-point-value', $('pointValue').value);
@@ -1562,7 +1664,7 @@ $('togglePlayerChat').onclick = () => {
     document.addEventListener('visibilitychange', () => { if(document.visibilityState==='hidden') flushLayout(); });
 
     socket.on('kicked', () => {
-      role=null; playerName=''; playerSocketId=''; buzzPending=false; playerMessages=[]; playerChatState={settings:{privateEnabled:true,teamEnabled:true,answerModeEnabled:false},private:[],team:[],teamId:''};
+      role=null; playerName=''; playerSocketId=''; buzzPending=false; playerMessages=[]; playerChatState={settings:{privateEnabled:true,teamEnabled:true},private:[],team:[],teamId:''}; playerAnswerState={key:'',label:'',submitted:false,revealed:false};
       alert('Du wurdest vom Host aus der aktuellen Session entfernt.');
       show(chooser);
     });
@@ -1618,6 +1720,23 @@ $('togglePlayerChat').onclick = () => {
       renderHostChat();
     });
 
+
+    socket.on('player-answer-state', payload => {
+      if (role !== 'player' || !payload) return;
+      playerAnswerState = payload;
+      renderPlayerChat();
+    });
+
+    socket.on('host-answer-state', payload => {
+      if (role !== 'host' || !payload) return;
+      hostAnswerState = payload;
+      renderHostAnswers();
+    });
+
+    socket.on('answer-submit-error', info => {
+      if (role === 'player') alert(info?.message || 'Antwort konnte nicht eingeloggt werden.');
+    });
+
     socket.on('chat-new-message', item => {
       if (!item) return;
       if (role === 'player') {
@@ -1670,9 +1789,8 @@ $('togglePlayerChat').onclick = () => {
     }
 
     function chatLineHtml(item, mine) {
-      const cls = `chat-line${mine?' mine':''}${item.isAnswer?' answer':''}`;
-      const answer = item.isAnswer ? '<div class="small" style="color:#f7dc6f;font-weight:800">ANTWORT:</div>' : '';
-      return `<div class="${cls}"><div class="chat-author">${escapeHtml(item.senderName || (item.senderType==='host'?'Host':'Spieler'))}</div>${answer}<div>${escapeHtml(item.message)}</div><div class="chat-time">${chatTime(item.sentAt)}</div></div>`;
+      const cls = `chat-line${mine?' mine':''}`;
+      return `<div class="${cls}"><div class="chat-author">${escapeHtml(item.senderName || (item.senderType==='host'?'Host':'Spieler'))}</div><div>${escapeHtml(item.message)}</div><div class="chat-time">${chatTime(item.sentAt)}</div></div>`;
     }
 
     function sendPlayerChatMessage() {
@@ -1680,8 +1798,18 @@ $('togglePlayerChat').onclick = () => {
       const settings=playerChatState.settings||{};
       if(playerChatChannel==='host' && !settings.privateEnabled)return;
       if(playerChatChannel==='team' && (!settings.teamEnabled || !playerChatState.teamId))return;
-      socket.emit('player-chat-send',{channel:playerChatChannel,message,isAnswer:playerChatChannel==='host'&&!!settings.answerModeEnabled});
+      socket.emit('player-chat-send',{channel:playerChatChannel,message});
       input.value='';
+    }
+
+
+    function submitPlayerAnswer() {
+      if (playerAnswerState.submitted || playerAnswerState.revealed) return;
+      const input = $('playerAnswerInput');
+      const answer = input.value.trim();
+      if (!answer) return;
+      socket.emit('player-answer-submit', { answer });
+      input.value = '';
     }
 
     function updatePlayerChatNotification() {
@@ -1726,20 +1854,61 @@ $('togglePlayerChat').onclick = () => {
     }
 
     function renderPlayerChat() {
-      const settings=playerChatState.settings||{privateEnabled:true,teamEnabled:true,answerModeEnabled:false};
-      $('answerModeBox').classList.toggle('hidden',!settings.answerModeEnabled);
+      const settings=playerChatState.settings||{privateEnabled:true,teamEnabled:true};
+
       $('playerChatHostTab').classList.toggle('active',playerChatChannel==='host');
       $('playerChatTeamTab').classList.toggle('active',playerChatChannel==='team');
+      $('playerChatAnswerTab').classList.toggle('active',playerChatChannel==='answer');
       $('playerChatTeamTab').disabled=!playerChatState.teamId;
-      const hostBadge=$('playerHostUnread'); hostBadge.textContent=playerChatUnread.host; hostBadge.classList.toggle('hidden',!playerChatUnread.host);
-      const teamBadge=$('playerTeamUnread'); teamBadge.textContent=playerChatUnread.team; teamBadge.classList.toggle('hidden',!playerChatUnread.team);
+
+      const hostBadge=$('playerHostUnread');
+      hostBadge.textContent=playerChatUnread.host;
+      hostBadge.classList.toggle('hidden',!playerChatUnread.host);
+      const teamBadge=$('playerTeamUnread');
+      teamBadge.textContent=playerChatUnread.team;
+      teamBadge.classList.toggle('hidden',!playerChatUnread.team);
       updatePlayerChatNotification();
+
+      const answerMode = playerChatChannel === 'answer';
+      $('playerAnswerPanel').classList.toggle('hidden', !answerMode);
+      $('playerChatLog').classList.toggle('hidden', answerMode);
+      $('playerChatCompose').classList.toggle('hidden', answerMode);
+      $('playerChatDisabled').classList.add('hidden');
+
+      if (answerMode) {
+        const submitted = !!playerAnswerState.submitted;
+        const revealed = !!playerAnswerState.revealed;
+        const status = $('playerAnswerStatus');
+        const compose = $('playerAnswerCompose');
+
+        status.classList.toggle('logged', submitted);
+        if (submitted) {
+          status.textContent = revealed ? 'Antwort eingeloggt ✓ · Antworten wurden aufgedeckt.' : 'Antwort eingeloggt ✓';
+        } else if (revealed) {
+          status.textContent = 'Die Antworten wurden bereits aufgedeckt. Warte auf den nächsten Reset.';
+        } else {
+          status.textContent = 'Noch keine Antwort eingeloggt.';
+        }
+
+        compose.classList.toggle('hidden', submitted || revealed);
+        $('playerAnswerInput').disabled = submitted || revealed;
+        $('playerAnswerSubmit').disabled = submitted || revealed;
+        return;
+      }
+
       const enabled=playerChatChannel==='host'?settings.privateEnabled:(settings.teamEnabled&&!!playerChatState.teamId);
       const disabled=$('playerChatDisabled');
       disabled.classList.toggle('hidden',enabled);
-      if(!enabled) disabled.textContent=playerChatChannel==='host'?'Der Privatchat wurde vom Host gesperrt.':(!playerChatState.teamId?'Du bist aktuell keinem Team zugeordnet.':'Der Teamchat wurde vom Host gesperrt.');
-      $('playerChatInput').disabled=!enabled; $('playerChatSend').disabled=!enabled;
-      $('playerChatInput').placeholder=settings.answerModeEnabled&&playerChatChannel==='host'?'Antwort:':'Nachricht schreiben …';
+      if(!enabled) {
+        disabled.textContent=playerChatChannel==='host'
+          ? 'Der Privatchat wurde vom Host gesperrt.'
+          : (!playerChatState.teamId?'Du bist aktuell keinem Team zugeordnet.':'Der Teamchat wurde vom Host gesperrt.');
+      }
+
+      $('playerChatInput').disabled=!enabled;
+      $('playerChatSend').disabled=!enabled;
+      $('playerChatInput').placeholder='Nachricht schreiben …';
+
       const items=playerChatChannel==='host'?(playerChatState.private||[]):(playerChatState.team||[]);
       const log=$('playerChatLog');
       log.innerHTML=items.length?items.map(x=>chatLineHtml(x,x.senderId===socket.id)).join(''):'<div class="small">Noch keine Nachrichten.</div>';
@@ -1747,7 +1916,7 @@ $('togglePlayerChat').onclick = () => {
     }
 
     function sendChatSettings(){
-      socket.emit('host-chat-settings',{privateEnabled:$('privateChatEnabled').checked,teamEnabled:$('teamChatEnabled').checked,answerModeEnabled:$('answerModeEnabled').checked});
+      socket.emit('host-chat-settings',{privateEnabled:$('privateChatEnabled').checked,teamEnabled:$('teamChatEnabled').checked});
     }
 
     function hostChannelKey(type,id){ return `${type}:${id}`; }
@@ -1761,8 +1930,8 @@ $('togglePlayerChat').onclick = () => {
 
     function renderHostChat(){
       if(role!=='host')return;
-      const settings=hostChatState.settings||{privateEnabled:true,teamEnabled:true,answerModeEnabled:false};
-      $('privateChatEnabled').checked=!!settings.privateEnabled; $('teamChatEnabled').checked=!!settings.teamEnabled; $('answerModeEnabled').checked=!!settings.answerModeEnabled;
+      const settings=hostChatState.settings||{privateEnabled:true,teamEnabled:true};
+      $('privateChatEnabled').checked=!!settings.privateEnabled; $('teamChatEnabled').checked=!!settings.teamEnabled;
       const channels=[];
       state.players.forEach(p=>channels.push({type:'private',id:p.id,label:`Privat · ${p.name}`,color:teamColorFor(p.teamId)}));
       state.teams.forEach(t=>channels.push({type:'team',id:t.id,label:`Team · ${t.name}`,color:t.color}));
@@ -1775,7 +1944,40 @@ $('togglePlayerChat').onclick = () => {
       const log=$('hostChatLog'); log.innerHTML=messages.length?messages.map(m=>chatLineHtml(m,m.senderType==='host')).join(''):'<div class="small">Noch keine Nachrichten.</div>'; log.scrollTop=log.scrollHeight;
       const enabled=hostChatSelection.type==='private'?settings.privateEnabled:settings.teamEnabled;
       $('hostChatInput').disabled=!hostChatSelection.id||!enabled; $('hostChatSend').disabled=!hostChatSelection.id||!enabled; $('clearHostChat').disabled=!hostChatSelection.id;
-      $('hostChatStatus').textContent=!enabled?'Dieser Chattyp ist derzeit gesperrt.':(settings.answerModeEnabled?'Antwortmodus ist aktiv.':'Privat- und Teamchats sind getrennt.');
+      $('hostChatStatus').textContent=!enabled?'Dieser Chattyp ist derzeit gesperrt.':'Privat- und Teamchats sind getrennt.';
+    }
+
+
+    function renderHostAnswers() {
+      if (role !== 'host') return;
+      const entries = hostAnswerState.entries || [];
+      const submitted = Number(hostAnswerState.submittedCount || 0);
+      const total = Number(hostAnswerState.totalCount || entries.length || 0);
+      const revealed = !!hostAnswerState.revealed;
+
+      $('hostAnswersCounter').textContent = `${submitted} / ${total} eingeloggt${revealed ? ' · aufgedeckt' : ''}`;
+      $('revealAnswers').disabled = !submitted || revealed;
+      $('resetAnswers').disabled = !submitted && !revealed;
+
+      const list = $('hostAnswersList');
+      if (!entries.length) {
+        list.innerHTML = '<div class="small">Noch keine Spieler oder Teams.</div>';
+        return;
+      }
+
+      list.innerHTML = entries.map(entry => {
+        let value = '<span class="host-answer-pending">Noch keine Antwort.</span>';
+        if (entry.submitted && !revealed) {
+          value = '<span class="answer-value">Antwort eingeloggt ✓</span>';
+        } else if (entry.submitted && revealed) {
+          value = `<span class="answer-value">${escapeHtml(entry.answer || '')}</span>`;
+        }
+        const by = entry.submittedBy ? `<div class="small">Eingeloggt von ${escapeHtml(entry.submittedBy)}</div>` : '';
+        return `<div class="host-answer-row" style="border-left-color:${escapeAttribute(entry.color || '#777')}">
+          <div><strong>${escapeHtml(entry.label || '')}</strong>${by}</div>
+          <div>${value}</div>
+        </div>`;
+      }).join('');
     }
 
     function renderPlayerMessages() {
