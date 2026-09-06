@@ -74,3 +74,8 @@ Auf dem Buzzer steht ausschließlich der im Host-Panel definierte Zustandstext:
 Teams, Teamfarben, Spieler-Team-Zuordnungen, Buzzer-Texte und Host-Layout werden wie bisher gespeichert.
 
 **Antworten selbst werden absichtlich nur für die laufende Server-Session gehalten** und nicht dauerhaft gespeichert.
+
+### Neue Komfortfunktionen
+- Spieler können Bugs direkt über **🐞 Bug melden** an den Host schicken.
+- Privat- und Teamchat lassen sich jetzt hochscrollen, ohne automatisch wieder nach unten zu springen.
+- Antworten werden bei Teamzuordnung als gemeinsame **Team-Antwort** behandelt; unzugeordnete Spieler nutzen eine **Solo-Antwort**.

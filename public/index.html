@@ -700,6 +700,21 @@
       border:1px solid rgba(46,204,113,.45);
       background:rgba(46,204,113,.10);
     }
+
+    .bug-report-button { width:auto; padding:7px 11px; border-radius:9px; background:#3a253d; color:#ffd3ff; border:1px solid rgba(255,130,255,.25); }
+    .bug-report-dialog { border:1px solid rgba(255,255,255,.14); border-radius:16px; background:#111722; color:var(--text); width:min(560px,calc(100vw - 32px)); padding:0; }
+    .bug-report-dialog::backdrop { background:rgba(0,0,0,.72); }
+    .bug-report-dialog-inner { padding:18px; }
+    .bug-report-dialog textarea { width:100%; min-height:150px; resize:vertical; box-sizing:border-box; }
+    .bug-report-dialog select { width:100%; }
+    .bug-report-list { display:flex; flex-direction:column; gap:9px; max-height:480px; overflow:auto; padding-right:3px; }
+    .bug-report-row { border:1px solid rgba(255,255,255,.10); border-left:4px solid #ff6500; border-radius:11px; padding:10px; background:rgba(255,255,255,.025); }
+    .bug-report-row.resolved { opacity:.58; border-left-color:#6b7280; }
+    .bug-report-meta { display:flex; flex-wrap:wrap; gap:7px 12px; font-size:11px; color:var(--muted); margin:4px 0 7px; }
+    .bug-report-text { white-space:pre-wrap; overflow-wrap:anywhere; }
+    .bug-report-actions { display:flex; gap:7px; flex-wrap:wrap; margin-top:9px; }
+    .bug-report-actions button { width:auto; padding:6px 9px; font-size:12px; }
+    .answer-team-label { margin-bottom:9px; padding:8px 10px; border-radius:10px; background:rgba(255,101,0,.09); border:1px solid rgba(255,101,0,.22); }
     .host-answers-panel {
       margin-top:16px;
       padding-top:16px;
@@ -799,19 +814,20 @@
       <div id="playerChatShell" class="chat-shell">
           <div class="chat-head">
             <div class="chat-head-title"><strong>Chat</strong><span id="playerChatHeadUnread" class="chat-head-unread hidden">0</span></div>
-            <button id="togglePlayerChat" class="chat-collapse" type="button">Minimieren</button>
+            <div class="controls" style="margin:0"><button id="openBugReport" class="bug-report-button" type="button">🐞 Bug melden</button><button id="togglePlayerChat" class="chat-collapse" type="button">Minimieren</button></div>
           </div>
           <div class="chat-body">
             <div class="chat-tabs">
               <button id="playerChatHostTab" class="chat-tab active" type="button">Privat mit Host <span id="playerHostUnread" class="chat-badge hidden">0</span></button>
               <button id="playerChatTeamTab" class="chat-tab" type="button">Teamchat <span id="playerTeamUnread" class="chat-badge hidden">0</span></button>
-              <button id="playerChatAnswerTab" class="chat-tab" type="button">Antwort</button>
+              <button id="playerChatAnswerTab" class="chat-tab" type="button">Team-Antwort</button>
             </div>
             <div id="playerChatDisabled" class="chat-disabled hidden"></div>
             <div id="playerChatLog" class="chat-log"></div>
             <div id="playerChatCompose" class="chat-compose"><input id="playerChatInput" maxlength="500" placeholder="Nachricht schreiben …"><button id="playerChatSend" type="button">Senden</button></div>
             <div id="playerAnswerPanel" class="answer-entry-panel hidden">
               <div class="answer-entry-title">Geheime Antwort einloggen</div>
+              <div id="playerAnswerTeamLabel" class="answer-team-label"></div>
               <div id="playerAnswerStatus" class="answer-entry-status">Noch keine Antwort eingeloggt.</div>
               <div id="playerAnswerCompose" class="chat-compose">
                 <input id="playerAnswerInput" maxlength="500" autocomplete="off" placeholder="Antwort eingeben …">
@@ -822,6 +838,30 @@
           </div>
       
       </div>
+
+
+      <dialog id="bugReportDialog" class="bug-report-dialog">
+        <div class="bug-report-dialog-inner">
+          <h3 style="margin-top:0">🐞 Bug melden</h3>
+          <p class="small">Beschreibe kurz, was passiert ist. Dein Spielername und Browser werden automatisch mitgeschickt.</p>
+          <label>Bereich</label>
+          <select id="bugReportArea">
+            <option value="Buzzer">Buzzer</option>
+            <option value="Chat">Chat</option>
+            <option value="Team-Antwort">Team-Antwort</option>
+            <option value="Punkte / Teams">Punkte / Teams</option>
+            <option value="Anzeige / Layout">Anzeige / Layout</option>
+            <option value="Sonstiges">Sonstiges</option>
+          </select>
+          <label style="display:block;margin-top:10px">Was ist passiert?</label>
+          <textarea id="bugReportMessage" maxlength="1500" placeholder="z. B. Im Teamchat kann ich nach oben scrollen, aber die Ansicht springt sofort wieder nach unten …"></textarea>
+          <div class="controls" style="margin-top:10px;justify-content:flex-end">
+            <button id="cancelBugReport" class="small-button" type="button">Abbrechen</button>
+            <button id="submitBugReport" class="host-start" type="button">Bug senden</button>
+          </div>
+          <div id="bugReportStatus" class="small" style="margin-top:8px"></div>
+        </div>
+      </dialog>
 
       <div id="playerTribune" class="tribune-player-view hidden">
         <h3>🏟️ Tribüne</h3>
@@ -968,6 +1008,13 @@
         </section>
 
 
+
+        <section class="dash-card" data-card="bugreports" data-size="wide">
+          <div class="dash-head"><h3>🐞 Bug-Reports <span class="small">(<span id="bugReportCount">0</span> offen)</span></h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small" style="margin-bottom:9px">Spieler-Meldungen werden hier live angezeigt und serverseitig gespeichert.</div>
+          <div id="hostBugReports" class="bug-report-list"><div class="small">Noch keine Bug-Reports.</div></div>
+        </section>
+
         <section class="dash-card" data-card="playerdisplay" data-size="medium">
           <div class="dash-head"><h3>👁️ Spieleranzeige</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <label class="message-target"><input id="showPlayerBuzzDetails" type="checkbox"><span class="target-stack"><strong>Buzz-Reihenfolge bei Spielern anzeigen</strong><span class="small">Zeigt Zeiten und Abstand zum Schnellsten wie in der Host-Ansicht.</span></span></label>
@@ -1025,6 +1072,8 @@
     let hostChatState = { settings:{privateEnabled:true,teamEnabled:true}, messages:[] };
     let playerAnswerState = { key:'', label:'', submitted:false, revealed:false };
     let hostAnswerState = { revealed:false, submittedCount:0, totalCount:0, entries:[] };
+    let hostBugReports = [];
+    let lastPlayerChatChannel = 'host';
     let playerChatChannel = 'host';
     let hostChatSelection = { type:'private', id:'' };
     let hostChatUnread = {};
@@ -1550,6 +1599,20 @@ $('togglePlayerChat').onclick = () => {
     $('playerChatHostTab').onclick = () => { playerChatChannel='host'; playerChatUnread.host=0; renderPlayerChat(); };
     $('playerChatTeamTab').onclick = () => { playerChatChannel='team'; playerChatUnread.team=0; renderPlayerChat(); };
     $('playerChatAnswerTab').onclick = () => { playerChatChannel='answer'; renderPlayerChat(); };
+
+    $('openBugReport').onclick = () => {
+      $('bugReportMessage').value=''; $('bugReportStatus').textContent='';
+      $('bugReportDialog').showModal();
+    };
+    $('cancelBugReport').onclick = () => $('bugReportDialog').close();
+    $('submitBugReport').onclick = () => {
+      const message=$('bugReportMessage').value.trim();
+      if(!message){ $('bugReportStatus').textContent='Bitte beschreibe den Bug kurz.'; return; }
+      $('submitBugReport').disabled=true;
+      $('bugReportStatus').textContent='Wird gesendet …';
+      socket.emit('player-bug-report',{area:$('bugReportArea').value,message,userAgent:navigator.userAgent});
+    };
+
     $('playerChatNotice').onclick = () => openUnreadPlayerChat();
     $('playerChatNotice').addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openUnreadPlayerChat(); } });
     $('playerChatSend').onclick = sendPlayerChatMessage;
@@ -1733,6 +1796,22 @@ $('togglePlayerChat').onclick = () => {
       renderHostAnswers();
     });
 
+
+    socket.on('host-bug-reports', payload => {
+      if(role!=='host' || !payload) return;
+      hostBugReports = Array.isArray(payload.reports) ? payload.reports : [];
+      renderHostBugReports();
+    });
+
+    socket.on('bug-report-submitted', info => {
+      if(role!=='player') return;
+      $('submitBugReport').disabled=false;
+      if(info?.ok){
+        $('bugReportStatus').textContent='Danke! Der Bug wurde an den Host gemeldet.';
+        setTimeout(()=>{ try{$('bugReportDialog').close();}catch(_){} },700);
+      } else $('bugReportStatus').textContent='Bug konnte nicht gesendet werden.';
+    });
+
     socket.on('answer-submit-error', info => {
       if (role === 'player') alert(info?.message || 'Antwort konnte nicht eingeloggt werden.');
     });
@@ -1855,11 +1934,20 @@ $('togglePlayerChat').onclick = () => {
 
     function renderPlayerChat() {
       const settings=playerChatState.settings||{privateEnabled:true,teamEnabled:true};
+      const channelChanged = lastPlayerChatChannel !== playerChatChannel;
+      lastPlayerChatChannel = playerChatChannel;
 
       $('playerChatHostTab').classList.toggle('active',playerChatChannel==='host');
       $('playerChatTeamTab').classList.toggle('active',playerChatChannel==='team');
       $('playerChatAnswerTab').classList.toggle('active',playerChatChannel==='answer');
       $('playerChatTeamTab').disabled=!playerChatState.teamId;
+
+      const me = state.players.find(p=>p.id===socket.id);
+      const team = me?.teamId ? state.teams.find(t=>t.id===me.teamId) : null;
+      $('playerChatAnswerTab').textContent = team ? 'Team-Antwort' : 'Solo-Antwort';
+      $('playerAnswerTeamLabel').textContent = team
+        ? `Gemeinsame Antwort für ${team.name}. Sobald ein Teammitglied einloggt, ist die Antwort für das ganze Team gesperrt.`
+        : 'Du bist keinem Team zugeordnet. Diese Antwort gehört nur dir.';
 
       const hostBadge=$('playerHostUnread');
       hostBadge.textContent=playerChatUnread.host;
@@ -1887,12 +1975,13 @@ $('togglePlayerChat').onclick = () => {
         } else if (revealed) {
           status.textContent = 'Die Antworten wurden bereits aufgedeckt. Warte auf den nächsten Reset.';
         } else {
-          status.textContent = 'Noch keine Antwort eingeloggt.';
+          status.textContent = team ? 'Noch keine Team-Antwort eingeloggt.' : 'Noch keine Antwort eingeloggt.';
         }
 
         compose.classList.toggle('hidden', submitted || revealed);
         $('playerAnswerInput').disabled = submitted || revealed;
         $('playerAnswerSubmit').disabled = submitted || revealed;
+        $('playerAnswerSubmit').textContent = team ? 'Team-Antwort einloggen' : 'Antwort einloggen';
         return;
       }
 
@@ -1911,8 +2000,14 @@ $('togglePlayerChat').onclick = () => {
 
       const items=playerChatChannel==='host'?(playerChatState.private||[]):(playerChatState.team||[]);
       const log=$('playerChatLog');
+      // Wichtig: Nicht bei jedem Server-State wieder nach unten zwingen. Genau das
+      // hat bisher verhindert, dass Spieler im Privat-/Teamchat hochscrollen konnten.
+      const distanceFromBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
+      const wasNearBottom = distanceFromBottom < 48;
+      const previousScrollTop = log.scrollTop;
       log.innerHTML=items.length?items.map(x=>chatLineHtml(x,x.senderId===socket.id)).join(''):'<div class="small">Noch keine Nachrichten.</div>';
-      log.scrollTop=log.scrollHeight;
+      if(channelChanged || wasNearBottom) log.scrollTop=log.scrollHeight;
+      else log.scrollTop=previousScrollTop;
     }
 
     function sendChatSettings(){
@@ -1941,7 +2036,7 @@ $('togglePlayerChat').onclick = () => {
       const selected=channels.find(c=>c.type===hostChatSelection.type&&c.id===hostChatSelection.id);
       $('hostChatTitle').textContent=selected?.label||'Chat auswählen';
       const messages=(hostChatState.messages||[]).filter(m=>hostChatSelection.type==='private'?(m.scope==='private'&&m.playerId===hostChatSelection.id):(m.scope==='team'&&m.teamId===hostChatSelection.id));
-      const log=$('hostChatLog'); log.innerHTML=messages.length?messages.map(m=>chatLineHtml(m,m.senderType==='host')).join(''):'<div class="small">Noch keine Nachrichten.</div>'; log.scrollTop=log.scrollHeight;
+      const log=$('hostChatLog'); const hostDist=log.scrollHeight-log.scrollTop-log.clientHeight; const hostNearBottom=hostDist<48; const hostPrevTop=log.scrollTop; log.innerHTML=messages.length?messages.map(m=>chatLineHtml(m,m.senderType==='host')).join(''):'<div class="small">Noch keine Nachrichten.</div>'; if(hostNearBottom) log.scrollTop=log.scrollHeight; else log.scrollTop=hostPrevTop;
       const enabled=hostChatSelection.type==='private'?settings.privateEnabled:settings.teamEnabled;
       $('hostChatInput').disabled=!hostChatSelection.id||!enabled; $('hostChatSend').disabled=!hostChatSelection.id||!enabled; $('clearHostChat').disabled=!hostChatSelection.id;
       $('hostChatStatus').textContent=!enabled?'Dieser Chattyp ist derzeit gesperrt.':'Privat- und Teamchats sind getrennt.';
@@ -1979,6 +2074,31 @@ $('togglePlayerChat').onclick = () => {
         </div>`;
       }).join('');
     }
+
+
+    function renderHostBugReports() {
+      if(role!=='host') return;
+      const list=$('hostBugReports');
+      const reports=hostBugReports||[];
+      const open=reports.filter(r=>!r.resolved).length;
+      $('bugReportCount').textContent=open;
+      if(!reports.length){ list.innerHTML='<div class="small">Noch keine Bug-Reports.</div>'; return; }
+      list.innerHTML=reports.map(r=>{
+        const team=r.teamName?` · ${escapeHtml(r.teamName)}`:'';
+        const meta=`${new Date(r.createdAt).toLocaleString('de-DE')} · ${escapeHtml(r.area||'Sonstiges')}`;
+        return `<div class="bug-report-row ${r.resolved?'resolved':''}">
+          <strong>${escapeHtml(r.playerName||'Unbekannt')}${team}</strong>
+          <div class="bug-report-meta"><span>${meta}</span></div>
+          <div class="bug-report-text">${escapeHtml(r.message||'')}</div>
+          <div class="bug-report-actions">
+            <button class="small-button" type="button" onclick="toggleBugResolved('${jsSafe(r.id)}',${r.resolved?'false':'true'})">${r.resolved?'Wieder öffnen':'Als erledigt markieren'}</button>
+            <button class="host-reset" type="button" onclick="deleteBugReport('${jsSafe(r.id)}')">Löschen</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    window.toggleBugResolved=(id,resolved)=>socket.emit('host-bug-report-resolve',{id,resolved});
+    window.deleteBugReport=(id)=>{ if(confirm('Diesen Bug-Report wirklich löschen?')) socket.emit('host-bug-report-delete',{id}); };
 
     function renderPlayerMessages() {
       const box = $('playerMessages');

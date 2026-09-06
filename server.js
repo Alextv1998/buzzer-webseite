@@ -3,6 +3,8 @@ const http = require('http');
 const path = require('path');
 const crypto = require('crypto');
 const fs = require('fs');
+let nodemailer = null;
+try { nodemailer = require('nodemailer'); } catch (_) {}
 const { Server } = require('socket.io');
 
 const app = express();
@@ -303,6 +305,79 @@ function broadcastAnswerStates() {
   }
 }
 
+
+// ======================================================
+// BUG-REPORT-SYSTEM
+// Spieler können Bugs melden. Reports werden serverseitig gespeichert und
+// live an alle angemeldeten Hosts übertragen. Optional kann zusätzlich eine
+// E-Mail über SMTP versendet werden (siehe README_SETUP.md).
+// ======================================================
+const BUG_REPORT_FILE = path.join(__dirname, 'bug-reports.json');
+let bugReports = [];
+
+function loadBugReports() {
+  try {
+    if (!fs.existsSync(BUG_REPORT_FILE)) return;
+    const parsed = JSON.parse(fs.readFileSync(BUG_REPORT_FILE, 'utf8'));
+    bugReports = Array.isArray(parsed?.reports) ? parsed.reports.slice(-500) : [];
+  } catch (err) {
+    console.warn('Bug-Reports konnten nicht geladen werden:', err.message);
+  }
+}
+
+function saveBugReports() {
+  try {
+    fs.writeFileSync(BUG_REPORT_FILE, JSON.stringify({ version: 1, reports: bugReports }, null, 2), 'utf8');
+  } catch (err) {
+    console.warn('Bug-Reports konnten nicht gespeichert werden:', err.message);
+  }
+}
+
+function bugReportPayload() {
+  return { reports: bugReports.slice().sort((a,b) => b.createdAt - a.createdAt) };
+}
+
+function broadcastBugReports() {
+  for (const [, hostSocket] of io.sockets.sockets) {
+    if (hostSocket.data?.isHost) hostSocket.emit('host-bug-reports', bugReportPayload());
+  }
+}
+
+async function maybeEmailBugReport(report) {
+  const to = String(process.env.BUG_EMAIL_TO || '').trim();
+  const host = String(process.env.SMTP_HOST || '').trim();
+  const user = String(process.env.SMTP_USER || '').trim();
+  const pass = String(process.env.SMTP_PASS || '').trim();
+  if (!to || !host || !user || !pass || !nodemailer) return;
+
+  try {
+    const port = Number(process.env.SMTP_PORT || 587);
+    const secure = String(process.env.SMTP_SECURE || '').toLowerCase() === 'true' || port === 465;
+    const transporter = nodemailer.createTransport({ host, port, secure, auth: { user, pass } });
+    const subject = `[Musiklex Buzzer] Bug von ${report.playerName}`;
+    const text = [
+      `Spieler: ${report.playerName}`,
+      `Team: ${report.teamName || '-'}`,
+      `Zeit: ${new Date(report.createdAt).toLocaleString('de-DE')}`,
+      `Bereich: ${report.area || '-'}`,
+      '',
+      report.message,
+      '',
+      `Browser: ${report.userAgent || '-'}`
+    ].join('\n');
+    await transporter.sendMail({
+      from: String(process.env.SMTP_FROM || user),
+      to,
+      subject,
+      text
+    });
+  } catch (err) {
+    console.warn('Bug-Report-E-Mail konnte nicht gesendet werden:', err.message);
+  }
+}
+
+loadBugReports();
+
 function cleanName(value, fallback = '') {
   const result = String(value || '').trim().slice(0, 30);
   return result || fallback;
@@ -380,6 +455,7 @@ io.on('connection', (socket) => {
     const ok = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
     socket.data.isHost = ok;
     socket.emit('host-auth-result', { ok });
+    if (ok) socket.emit('host-bug-reports', bugReportPayload());
     if (ok) {
       emitChatStateToHostSocket(socket);
       emitAnswerStateToHostSocket(socket);
@@ -761,6 +837,48 @@ io.on('connection', (socket) => {
     broadcastChatStates();
   });
 
+
+
+  socket.on('player-bug-report', ({ area, message, userAgent }) => {
+    const player = connectedPlayers.get(socket.id);
+    const text = cleanMessage(message);
+    if (!player || !text) return;
+    const team = player.teamId ? getTeam(player.teamId) : null;
+    const report = {
+      id: `${Date.now()}-${crypto.randomBytes(5).toString('hex')}`,
+      playerId: player.id,
+      playerName: player.name,
+      teamId: player.teamId || '',
+      teamName: team?.name || '',
+      area: String(area || '').trim().slice(0, 80),
+      message: text.slice(0, 1500),
+      userAgent: String(userAgent || '').slice(0, 500),
+      createdAt: Date.now(),
+      resolved: false
+    };
+    bugReports.push(report);
+    if (bugReports.length > 500) bugReports = bugReports.slice(-500);
+    saveBugReports();
+    broadcastBugReports();
+    socket.emit('bug-report-submitted', { ok: true });
+    void maybeEmailBugReport(report);
+  });
+
+  socket.on('host-bug-report-resolve', ({ id, resolved }) => {
+    const report = bugReports.find(r => r.id === String(id || ''));
+    if (!report) return;
+    report.resolved = Boolean(resolved);
+    saveBugReports();
+    broadcastBugReports();
+  });
+
+  socket.on('host-bug-report-delete', ({ id }) => {
+    const before = bugReports.length;
+    bugReports = bugReports.filter(r => r.id !== String(id || ''));
+    if (bugReports.length === before) return;
+    saveBugReports();
+    broadcastBugReports();
+  });
 
   socket.on('player-answer-submit', ({ answer }) => {
     const player = connectedPlayers.get(socket.id);
