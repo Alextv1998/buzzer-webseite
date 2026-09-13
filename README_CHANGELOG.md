@@ -49,3 +49,12 @@
 - Die Lautstärken werden lokal im Browser gespeichert.
 - Separater Video-Killed-The-Audio-Star-Player unter `public/tools/video-killed-the-audio-star.html`.
 - Dort kann der Ton während des laufenden YouTube-Videos ein-/ausgeschaltet werden, ohne das Video neu zu laden oder zum Startpunkt zurückzuspringen.
+
+## Sound-Lautstärken-Panel
+- Das Soundboard selbst enthält keine allgemeinen Lautstärkeregler mehr.
+- Neues eigenes, verschiebbares Panel **🎚️ Sound-Lautstärken**.
+- Jeder Soundboard-Sound hat eine eigene Lautstärke: Richtige Antwort, Falsche Antwort, Nächste Fragerunde, Nächste Hauptrunde, Countdown 5 Sek., Zeit! und Buzzer.
+- Lautstärken werden lokal gespeichert.
+- Bei „Auch bei Spielern abspielen“ wird die gewählte Lautstärke des jeweiligen Sounds an die Spieler übertragen.
+- Countdown startet standardmäßig bei 35 %, alle übrigen Sounds bei 70 %.
+- Button zum Zurücksetzen auf Standard-Lautstärken hinzugefügt.

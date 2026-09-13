@@ -947,19 +947,24 @@
         <section class="dash-card" data-card="soundboard" data-size="large">
           <div class="dash-head"><h3>🔊 Soundboard</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <label class="message-target"><input id="soundSharePlayers" type="checkbox"><span class="target-stack"><strong>Auch bei Spielern abspielen</strong><span class="small">Ohne Haken hörst nur du den Sound.</span></span></label>
-          <div style="margin-top:10px">
-            <label for="soundVolume"><strong>Sound-Lautstärke</strong> · <span id="soundVolumeLabel">70%</span></label>
-            <input id="soundVolume" type="range" min="0" max="100" value="70" step="5" style="width:100%">
-            <div class="small">Gilt für die Soundboard-Sounds auf diesem Gerät.</div>
-          </div>
-          <div style="margin-top:8px">
-            <label for="countdownVolume"><strong>Countdown-Lautstärke</strong> · <span id="countdownVolumeLabel">35%</span></label>
-            <input id="countdownVolume" type="range" min="0" max="100" value="35" step="5" style="width:100%">
-            <div class="small">Der 5-Sekunden-Countdown ist standardmäßig 50% leiser als die übrigen Sounds.</div>
-          </div>
           <div class="soundboard-grid">
             <button data-sound="correct">✅ Richtige Antwort</button><button data-sound="wrong">❌ Falsche Antwort</button><button data-sound="nextQuestion">❓ Nächste Fragerunde</button><button data-sound="nextMainRound">🎵 Nächste Hauptrunde</button><button data-sound="countdown5">5️⃣ Countdown 5 Sek.</button><button data-sound="timeup">⏰ Zeit!</button><button data-sound="buzzer">🔴 Buzzer</button>
           </div>
+        </section>
+
+        <section class="dash-card" data-card="soundvolumes" data-size="large">
+          <div class="dash-head"><h3>🎚️ Sound-Lautstärken</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small">Stelle jeden Soundboard-Sound einzeln ein. Die Werte werden auf diesem Gerät gespeichert und beim Abspielen auch an die Spieler übertragen.</div>
+          <div id="soundVolumeList" style="margin-top:12px; display:grid; gap:10px">
+            <label><strong>✅ Richtige Antwort</strong> · <span data-sound-volume-label="correct">70%</span><input data-sound-volume="correct" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+            <label><strong>❌ Falsche Antwort</strong> · <span data-sound-volume-label="wrong">70%</span><input data-sound-volume="wrong" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+            <label><strong>❓ Nächste Fragerunde</strong> · <span data-sound-volume-label="nextQuestion">70%</span><input data-sound-volume="nextQuestion" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+            <label><strong>🎵 Nächste Hauptrunde</strong> · <span data-sound-volume-label="nextMainRound">70%</span><input data-sound-volume="nextMainRound" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+            <label><strong>5️⃣ Countdown 5 Sek.</strong> · <span data-sound-volume-label="countdown5">35%</span><input data-sound-volume="countdown5" type="range" min="0" max="100" value="35" step="5" style="width:100%"></label>
+            <label><strong>⏰ Zeit!</strong> · <span data-sound-volume-label="timeup">70%</span><input data-sound-volume="timeup" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+            <label><strong>🔴 Buzzer</strong> · <span data-sound-volume-label="buzzer">70%</span><input data-sound-volume="buzzer" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+          </div>
+          <button id="resetSoundVolumes" class="small-button" type="button" style="margin-top:12px">Standard-Lautstärken</button>
         </section>
 
         <section class="dash-card" data-card="tribune" data-size="wide">
@@ -1439,7 +1444,7 @@
       } catch (_) {}
     }
 
-    function playBuzzSound() {
+    function playBuzzSound(volumeMultiplier = 1) {
       try {
         ensureAudio();
         if (!audioContext) return;
@@ -1448,7 +1453,7 @@
         oscillator.type = 'square';
         oscillator.frequency.setValueAtTime(220, audioContext.currentTime);
         oscillator.frequency.exponentialRampToValueAtTime(130, audioContext.currentTime + 0.12);
-        gain.gain.setValueAtTime(0.18, audioContext.currentTime);
+        gain.gain.setValueAtTime(0.18 * Math.max(0, Math.min(1, volumeMultiplier)), audioContext.currentTime);
         gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.18);
         oscillator.connect(gain);
         gain.connect(audioContext.destination);
@@ -1477,13 +1482,29 @@
     }
 
 
-    let soundVolume = Number(localStorage.getItem('musiklexSoundVolume') ?? 70) / 100;
-    let countdownVolume = Number(localStorage.getItem('musiklexCountdownVolume') ?? 35) / 100;
+    const defaultSoundVolumes = { correct:70, wrong:70, nextQuestion:70, nextMainRound:70, countdown5:35, timeup:70, buzzer:70 };
+    let soundVolumes = {...defaultSoundVolumes};
+    try {
+      const saved = JSON.parse(localStorage.getItem('musiklexSoundVolumes') || '{}');
+      Object.keys(defaultSoundVolumes).forEach(key => {
+        if (Number.isFinite(Number(saved[key]))) soundVolumes[key] = Math.max(0, Math.min(100, Number(saved[key])));
+      });
+    } catch (_) {}
 
+    function soundVolumeFor(sound) {
+      return Math.max(0, Math.min(1, Number(soundVolumes[sound] ?? 70) / 100));
+    }
+    function saveSoundVolumes() {
+      try { localStorage.setItem('musiklexSoundVolumes', JSON.stringify(soundVolumes)); } catch (_) {}
+    }
     function syncSoundVolumeControls() {
-      const master = $('soundVolume'), countdown = $('countdownVolume');
-      if (master) { master.value = Math.round(soundVolume * 100); $('soundVolumeLabel').textContent = `${Math.round(soundVolume*100)}%`; }
-      if (countdown) { countdown.value = Math.round(countdownVolume * 100); $('countdownVolumeLabel').textContent = `${Math.round(countdownVolume*100)}%`; }
+      document.querySelectorAll('[data-sound-volume]').forEach(input => {
+        const key = input.dataset.soundVolume;
+        const value = Math.round(Number(soundVolumes[key] ?? defaultSoundVolumes[key] ?? 70));
+        input.value = value;
+        const label = document.querySelector(`[data-sound-volume-label="${key}"]`);
+        if (label) label.textContent = `${value}%`;
+      });
     }
 
     const customSoundFiles = {
@@ -1495,7 +1516,7 @@
     };
     const customSoundPlayers = {};
 
-    function playSoundboard(sound) {
+    function playSoundboard(sound, volumeOverride = null) {
       try {
         if (customSoundFiles[sound]) {
           if (!customSoundPlayers[sound]) {
@@ -1503,7 +1524,8 @@
             customSoundPlayers[sound].preload = 'auto';
           }
           const audio = customSoundPlayers[sound];
-          audio.volume = Math.max(0, Math.min(1, sound === 'countdown5' ? countdownVolume : soundVolume));
+          const volume = volumeOverride == null ? soundVolumeFor(sound) : Math.max(0, Math.min(1, Number(volumeOverride)));
+          audio.volume = volume;
           audio.pause();
           audio.currentTime = 0;
           audio.play().catch(() => {});
@@ -1515,11 +1537,12 @@
         const tone = (freq, start, duration, type='sine', gainValue=.12) => {
           const o=audioContext.createOscillator(), g=audioContext.createGain();
           o.type=type; o.frequency.setValueAtTime(freq, now+start);
-          g.gain.setValueAtTime(gainValue * soundVolume, now+start); g.gain.exponentialRampToValueAtTime(.001, now+start+duration);
+          const volume = volumeOverride == null ? soundVolumeFor(sound) : Math.max(0, Math.min(1, Number(volumeOverride)));
+          g.gain.setValueAtTime(gainValue * volume, now+start); g.gain.exponentialRampToValueAtTime(.001, now+start+duration);
           o.connect(g); g.connect(audioContext.destination); o.start(now+start); o.stop(now+start+duration);
         };
         if (sound==='timeup') { tone(660,0,.16,'square',.11); tone(660,.22,.16,'square',.11); tone(440,.44,.42,'square',.12); }
-        else if (sound==='buzzer') { playBuzzSound(); }
+        else if (sound==='buzzer') { playBuzzSound(volumeOverride == null ? soundVolumeFor(sound) : Math.max(0, Math.min(1, Number(volumeOverride)))); }
       } catch (_) {}
     }
 
@@ -1696,10 +1719,20 @@ $('togglePlayerChat').onclick = () => {
     $('resetAnswerTimer').onclick = () => socket.emit('host-reset-answer-timer');
     $('showPlayerTribune').addEventListener('change', e => socket.emit('host-set-player-tribune-display', e.target.checked));
     syncSoundVolumeControls();
-    $('soundVolume').addEventListener('input', e => { soundVolume = Number(e.target.value)/100; localStorage.setItem('musiklexSoundVolume', e.target.value); $('soundVolumeLabel').textContent = `${e.target.value}%`; });
-    $('countdownVolume').addEventListener('input', e => { countdownVolume = Number(e.target.value)/100; localStorage.setItem('musiklexCountdownVolume', e.target.value); $('countdownVolumeLabel').textContent = `${e.target.value}%`; });
+    document.querySelectorAll('[data-sound-volume]').forEach(input => input.addEventListener('input', e => {
+      const key = e.target.dataset.soundVolume;
+      soundVolumes[key] = Math.max(0, Math.min(100, Number(e.target.value)));
+      const label = document.querySelector(`[data-sound-volume-label="${key}"]`);
+      if (label) label.textContent = `${Math.round(soundVolumes[key])}%`;
+      saveSoundVolumes();
+    }));
+    $('resetSoundVolumes').addEventListener('click', () => { soundVolumes = {...defaultSoundVolumes}; saveSoundVolumes(); syncSoundVolumeControls(); });
 
-    document.querySelectorAll('[data-sound]').forEach(btn => btn.addEventListener('click', () => { ensureAudio(); socket.emit('host-play-sound', { sound: btn.dataset.sound, share: $('soundSharePlayers').checked }); }));
+    document.querySelectorAll('[data-sound]').forEach(btn => btn.addEventListener('click', () => {
+      ensureAudio();
+      const sound = btn.dataset.sound;
+      socket.emit('host-play-sound', { sound, share: $('soundSharePlayers').checked, volume: soundVolumeFor(sound) });
+    }));
     $('addTeam').onclick = () => {
       socket.emit('host-add-team', $('newTeamName').value);
       $('newTeamName').value = '';
@@ -1868,7 +1901,7 @@ $('togglePlayerChat').onclick = () => {
     });
 
     socket.on('soundboard-play', payload => {
-      if (payload?.sound) playSoundboard(payload.sound);
+      if (payload?.sound) playSoundboard(payload.sound, payload.volume);
     });
 
     socket.on('host-message-sent', info => {

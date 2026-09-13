@@ -1029,12 +1029,13 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  socket.on('host-play-sound', ({ sound, share }) => {
+  socket.on('host-play-sound', ({ sound, share, volume }) => {
     const allowed = new Set(['correct','wrong','nextQuestion','nextMainRound','countdown5','timeup','buzzer']);
     const name = String(sound || '');
     if (!allowed.has(name)) return;
-    if (share) io.emit('soundboard-play', { sound: name });
-    else socket.emit('soundboard-play', { sound: name });
+    const safeVolume = Math.max(0, Math.min(1, Number.isFinite(Number(volume)) ? Number(volume) : 0.7));
+    if (share) io.emit('soundboard-play', { sound: name, volume: safeVolume });
+    else socket.emit('soundboard-play', { sound: name, volume: safeVolume });
   });
 
   socket.on('host-set-buzzer-texts', (payload) => {
