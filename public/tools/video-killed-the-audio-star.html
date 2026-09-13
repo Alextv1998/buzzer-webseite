@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Musiklex Video Player</title>
+  <style>
+    :root {
+      --bg: #111;
+      --panel: #1c1c1c;
+      --panel2: #242424;
+      --text: #f5f5f5;
+      --muted: #aaa;
+      --accent: #ff8a00;
+      --danger: #d84a4a;
+      --ok: #44b36b;
+      --border: #333;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Arial, Helvetica, sans-serif;
+      min-height: 100vh;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      min-height: 100vh;
+    }
+
+    .stage {
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #000;
+      overflow: hidden;
+      min-height: 100vh;
+    }
+
+    .video-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      max-height: 100vh;
+      background: #000;
+      overflow: hidden;
+    }
+
+    iframe {
+      width: 100%;
+      height: 100%;
+      border: 0;
+      display: block;
+      background: #000;
+    }
+
+    /* Verdeckt den oberen YouTube-Bereich, in dem Titel/Kanal auftauchen können */
+    .mask-top {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 74px;
+      background: #000;
+      z-index: 5;
+      pointer-events: none;
+    }
+
+    /* Verhindert, dass Zuschauer in der Show versehentlich Info-Overlays sehen */
+    .mask-corner {
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 145px;
+      height: 110px;
+      background: #000;
+      z-index: 6;
+      pointer-events: none;
+    }
+
+    .answer-overlay {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      background: rgba(0,0,0,.82);
+      text-align: center;
+      padding: 40px;
+    }
+
+    .answer-overlay.show { display: flex; }
+
+    .answer-card {
+      max-width: 900px;
+    }
+
+    .answer-label {
+      color: var(--accent);
+      text-transform: uppercase;
+      letter-spacing: .18em;
+      font-weight: 700;
+      font-size: 18px;
+      margin-bottom: 16px;
+    }
+
+    .answer-title {
+      font-size: clamp(36px, 6vw, 84px);
+      font-weight: 800;
+      line-height: 1.05;
+      margin-bottom: 18px;
+    }
+
+    .answer-artist {
+      color: #ddd;
+      font-size: clamp(22px, 3vw, 40px);
+    }
+
+    .sidebar {
+      background: var(--panel);
+      border-left: 1px solid var(--border);
+      padding: 18px;
+      overflow-y: auto;
+      max-height: 100vh;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 24px;
+    }
+
+    .sub {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 20px;
+    }
+
+    .section {
+      background: var(--panel2);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      margin-bottom: 14px;
+    }
+
+    .section h2 {
+      font-size: 15px;
+      margin: 0 0 12px;
+      color: #ddd;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      margin: 9px 0 5px;
+    }
+
+    input, textarea, select {
+      width: 100%;
+      padding: 10px 11px;
+      border-radius: 8px;
+      border: 1px solid #444;
+      background: #121212;
+      color: white;
+      font-size: 14px;
+      outline: none;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 105px;
+      font-family: Consolas, monospace;
+    }
+
+    input:focus, textarea:focus {
+      border-color: var(--accent);
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .row > * { flex: 1; }
+
+    button {
+      width: 100%;
+      border: 0;
+      border-radius: 9px;
+      padding: 11px 12px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      background: #3a3a3a;
+      color: white;
+      transition: .15s ease;
+    }
+
+    button:hover { filter: brightness(1.12); }
+
+    .accent { background: var(--accent); color: #111; }
+    .danger { background: var(--danger); }
+    .ok { background: var(--ok); color: #0b1b10; }
+
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .status {
+      padding: 9px 10px;
+      border-radius: 8px;
+      background: #111;
+      color: #bbb;
+      font-size: 12px;
+      min-height: 34px;
+      display: flex;
+      align-items: center;
+    }
+
+    .playlist {
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+      margin-top: 8px;
+    }
+
+    .playlist-item {
+      padding: 9px 10px;
+      border-radius: 8px;
+      background: #171717;
+      border: 1px solid #353535;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .playlist-item.active {
+      border-color: var(--accent);
+      color: #fff;
+      background: #2a2117;
+    }
+
+    .tiny {
+      font-size: 11px;
+      color: #888;
+      line-height: 1.4;
+    }
+
+    .showmode-btn {
+      position: fixed;
+      left: 14px;
+      bottom: 14px;
+      z-index: 50;
+      width: auto;
+      opacity: .25;
+      padding: 8px 10px;
+    }
+
+    .showmode-btn:hover { opacity: 1; }
+
+    body.show-mode .app {
+      grid-template-columns: 1fr;
+    }
+
+    body.show-mode .sidebar {
+      display: none;
+    }
+
+    body.show-mode .showmode-btn {
+      opacity: .08;
+    }
+
+    @media (max-width: 980px) {
+      .app { grid-template-columns: 1fr; }
+      .stage { min-height: auto; }
+      .sidebar {
+        max-height: none;
+        border-left: 0;
+        border-top: 1px solid var(--border);
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <main class="stage">
+      <div class="video-wrap">
+        <iframe
+          id="ytPlayer"
+          title="Musiklex Video"
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowfullscreen
+          referrerpolicy="strict-origin-when-cross-origin"
+        ></iframe>
+
+        <div class="mask-top" id="maskTop"></div>
+        <div class="mask-corner" id="maskCorner"></div>
+
+        <div class="answer-overlay" id="answerOverlay">
+          <div class="answer-card">
+            <div class="answer-label">Auflösung</div>
+            <div class="answer-title" id="answerTitle">Songtitel</div>
+            <div class="answer-artist" id="answerArtist">Interpret</div>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <aside class="sidebar">
+      <h1>🎵 Musiklex Video Player</h1>
+      <div class="sub">Für „Musikvideo ohne Musik erkennen“</div>
+
+      <section class="section">
+        <h2>Video laden</h2>
+
+        <label>YouTube-Link</label>
+        <input id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." />
+
+        <div class="row">
+          <div>
+            <label>Startzeit (Sek.)</label>
+            <input id="startTime" type="number" min="0" value="0" />
+          </div>
+          <div>
+            <label>Autoplay</label>
+            <select id="autoplay">
+              <option value="1" selected>Ja</option>
+              <option value="0">Nein</option>
+            </select>
+          </div>
+        </div>
+
+        <label>Songtitel für Auflösung</label>
+        <input id="songTitle" placeholder="z. B. Poker Face" />
+
+        <label>Interpret für Auflösung</label>
+        <input id="artist" placeholder="z. B. Lady Gaga" />
+
+        <div style="height:8px"></div>
+        <button class="accent" onclick="loadCurrentVideo()">▶ Video laden</button>
+      </section>
+
+      <section class="section">
+        <h2>Show-Steuerung</h2>
+        <div class="controls">
+          <button id="audioToggleButton" onclick="toggleMute()">🔊 Ton einschalten (ohne Neustart)</button>
+          <button onclick="reloadMuted()">↩ Neu starten</button>
+          <button class="ok" onclick="showAnswer()">✅ Auflösen</button>
+          <button onclick="hideAnswer()">🙈 Ausblenden</button>
+        </div>
+        <div style="height:8px"></div>
+        <button class="accent" onclick="nextVideo()">⏭ Nächstes Video</button>
+
+        <div style="height:10px"></div>
+        <div class="status" id="status">Noch kein Video geladen.</div>
+      </section>
+
+      <section class="section">
+        <h2>Playlist vorbereiten</h2>
+        <div class="tiny">
+          Eine Zeile pro Video im Format:<br>
+          <b>YouTube-Link | Startsekunde | Songtitel | Interpret</b>
+        </div>
+
+        <textarea id="playlistInput" placeholder="https://youtu.be/... | 0 | Songtitel | Interpret
+https://youtu.be/... | 23 | Songtitel | Interpret"></textarea>
+
+        <div style="height:8px"></div>
+        <button onclick="buildPlaylist()">📋 Playlist übernehmen</button>
+        <div class="playlist" id="playlist"></div>
+      </section>
+
+      <section class="section">
+        <h2>Anzeige</h2>
+        <div class="controls">
+          <button onclick="toggleMasks()">👁 Titelmaske an/aus</button>
+          <button onclick="toggleShowMode()">📺 Show-Modus</button>
+        </div>
+        <div class="tiny" style="margin-top:10px">
+          Im Show-Modus verschwindet die rechte Steuerleiste. Unten links bleibt ein kleiner Button, um sie zurückzuholen.
+        </div>
+      </section>
+    </aside>
+  </div>
+
+  <button class="showmode-btn" onclick="toggleShowMode()">⚙</button>
+
+  <script>
+    let isMuted = true;
+    let masksVisible = true;
+    let playlist = [];
+    let currentIndex = -1;
+    let currentVideoId = null;
+    let currentStart = 0;
+
+    function extractYouTubeId(url) {
+      if (!url) return null;
+
+      url = url.trim();
+
+      const patterns = [
+        /(?:youtube\.com\/watch\?v=)([^&\s]+)/,
+        /(?:youtu\.be\/)([^?\s]+)/,
+        /(?:youtube\.com\/shorts\/)([^?\s]+)/,
+        /(?:youtube\.com\/embed\/)([^?\s]+)/
+      ];
+
+      for (const pattern of patterns) {
+        const match = url.match(pattern);
+        if (match) return match[1];
+      }
+
+      // Falls direkt eine Video-ID eingegeben wurde
+      if (/^[a-zA-Z0-9_-]{11}$/.test(url)) {
+        return url;
+      }
+
+      return null;
+    }
+
+    function buildEmbedUrl(videoId, start, autoplay, muted) {
+      const params = new URLSearchParams({
+        autoplay: autoplay ? '1' : '0',
+        mute: muted ? '1' : '0',
+        controls: '1',
+        rel: '0',
+        modestbranding: '1',
+        playsinline: '1',
+        fs: '1',
+        iv_load_policy: '3',
+        disablekb: '0',
+        enablejsapi: '1',
+        origin: window.location.origin === 'null' ? '' : window.location.origin
+      });
+      if (!params.get('origin')) params.delete('origin');
+
+      if (start > 0) params.set('start', String(start));
+
+      return `https://www.youtube-nocookie.com/embed/${videoId}?${params.toString()}`;
+    }
+
+    function loadCurrentVideo() {
+      const url = document.getElementById('youtubeUrl').value.trim();
+      const id = extractYouTubeId(url);
+
+      if (!id) {
+        setStatus('❌ Keine gültige YouTube-URL oder Video-ID erkannt.');
+        return;
+      }
+
+      const start = Math.max(0, parseInt(document.getElementById('startTime').value || '0', 10));
+      const autoplay = document.getElementById('autoplay').value === '1';
+
+      currentVideoId = id;
+      currentStart = start;
+      isMuted = true;
+
+      document.getElementById('ytPlayer').src = buildEmbedUrl(id, start, autoplay, true);
+      hideAnswer();
+      updateAudioButton();
+      setStatus(`✅ Video geladen · Start bei ${start}s · stumm`);
+    }
+
+    function reloadMuted() {
+      if (!currentVideoId) {
+        setStatus('❌ Noch kein Video geladen.');
+        return;
+      }
+
+      isMuted = true;
+      document.getElementById('ytPlayer').src =
+        buildEmbedUrl(currentVideoId, currentStart, true, true);
+
+      hideAnswer();
+      updateAudioButton();
+      setStatus(`↩ Video neu gestartet · ${currentStart}s · stumm`);
+    }
+
+    function sendPlayerCommand(func, args = []) {
+      const frame = document.getElementById('ytPlayer');
+      if (!frame || !frame.contentWindow) return false;
+      frame.contentWindow.postMessage(JSON.stringify({ event:'command', func, args }), '*');
+      return true;
+    }
+
+    function updateAudioButton() {
+      const btn = document.getElementById('audioToggleButton');
+      if (!btn) return;
+      btn.textContent = isMuted ? '🔊 Ton einschalten (ohne Neustart)' : '🔇 Ton ausschalten';
+    }
+
+    function toggleMute() {
+      if (!currentVideoId) {
+        setStatus('❌ Noch kein Video geladen.');
+        return;
+      }
+
+      isMuted = !isMuted;
+      sendPlayerCommand(isMuted ? 'mute' : 'unMute');
+      updateAudioButton();
+      setStatus(isMuted ? '🔇 Ton aus · Video läuft weiter' : '🔊 Ton an · Video läuft weiter');
+    }
+
+    function showAnswer() {
+      const title = document.getElementById('songTitle').value.trim() || 'Unbekannter Song';
+      const artist = document.getElementById('artist').value.trim() || '';
+
+      document.getElementById('answerTitle').textContent = title;
+      document.getElementById('answerArtist').textContent = artist;
+      document.getElementById('answerOverlay').classList.add('show');
+
+      setStatus('✅ Auflösung eingeblendet.');
+    }
+
+    function hideAnswer() {
+      document.getElementById('answerOverlay').classList.remove('show');
+    }
+
+    function setStatus(text) {
+      document.getElementById('status').textContent = text;
+    }
+
+    function toggleMasks() {
+      masksVisible = !masksVisible;
+      document.getElementById('maskTop').style.display = masksVisible ? 'block' : 'none';
+      document.getElementById('maskCorner').style.display = masksVisible ? 'block' : 'none';
+      setStatus(masksVisible ? '👁 Titelmaske aktiv.' : '👁 Titelmaske deaktiviert.');
+    }
+
+    function toggleShowMode() {
+      document.body.classList.toggle('show-mode');
+    }
+
+    function buildPlaylist() {
+      const raw = document.getElementById('playlistInput').value.trim();
+
+      if (!raw) {
+        playlist = [];
+        currentIndex = -1;
+        renderPlaylist();
+        setStatus('Playlist geleert.');
+        return;
+      }
+
+      playlist = raw
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean)
+        .map((line, index) => {
+          const parts = line.split('|').map(x => x.trim());
+          return {
+            url: parts[0] || '',
+            start: parseInt(parts[1] || '0', 10) || 0,
+            title: parts[2] || `Video ${index + 1}`,
+            artist: parts[3] || ''
+          };
+        })
+        .filter(item => extractYouTubeId(item.url));
+
+      currentIndex = -1;
+      renderPlaylist();
+      setStatus(`📋 ${playlist.length} Video(s) übernommen.`);
+    }
+
+    function renderPlaylist() {
+      const box = document.getElementById('playlist');
+      box.innerHTML = '';
+
+      playlist.forEach((item, i) => {
+        const div = document.createElement('div');
+        div.className = 'playlist-item' + (i === currentIndex ? ' active' : '');
+        div.textContent = `${i + 1}. ${item.title}${item.artist ? ' – ' + item.artist : ''} (${item.start}s)`;
+        div.onclick = () => loadPlaylistItem(i);
+        box.appendChild(div);
+      });
+    }
+
+    function loadPlaylistItem(index) {
+      if (index < 0 || index >= playlist.length) return;
+
+      currentIndex = index;
+      const item = playlist[index];
+
+      document.getElementById('youtubeUrl').value = item.url;
+      document.getElementById('startTime').value = item.start;
+      document.getElementById('songTitle').value = item.title;
+      document.getElementById('artist').value = item.artist;
+
+      renderPlaylist();
+      loadCurrentVideo();
+    }
+
+    function nextVideo() {
+      if (!playlist.length) {
+        setStatus('❌ Keine Playlist vorbereitet.');
+        return;
+      }
+
+      const next = currentIndex + 1;
+
+      if (next >= playlist.length) {
+        setStatus('🏁 Ende der Playlist erreicht.');
+        return;
+      }
+
+      loadPlaylistItem(next);
+    }
+  </script>
+</body>
+</html>

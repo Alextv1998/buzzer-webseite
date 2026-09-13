@@ -41,3 +41,11 @@
 - Bugfix: Privat- und Teamchat springen nicht mehr bei jedem State-Update automatisch ans Ende. Spieler können jetzt zuverlässig hochscrollen.
 - Team-Antworten sind in der Spieleransicht nun ausdrücklich als **Team-Antwort** gekennzeichnet. Eine eingeloggt Antwort gilt für das ganze Team und sperrt das Feld für alle Teammitglieder bis zum Host-Reset.
 - Spieler ohne Team sehen stattdessen **Solo-Antwort**.
+
+## Update: Spielinfo, Sound-Lautstärke & Video Killed The Audio Star
+- Spielname und Regel-/Hinweistext in der Spieleransicht werden zentriert dargestellt.
+- Soundboard hat eine allgemeine Lautstärkeregelung (Standard 70 %).
+- Der 5-Sekunden-Countdown hat eine eigene Lautstärkeregelung (Standard 35 %, also 50 % leiser als der allgemeine Standard).
+- Die Lautstärken werden lokal im Browser gespeichert.
+- Separater Video-Killed-The-Audio-Star-Player unter `public/tools/video-killed-the-audio-star.html`.
+- Dort kann der Ton während des laufenden YouTube-Videos ein-/ausgeschaltet werden, ohne das Video neu zu laden oder zum Startpunkt zurückzuspringen.

@@ -131,9 +131,9 @@
     .lock-off { background:#177245; }
     #helloPlayer { display:inline-block; padding:8px 12px; border-left:6px solid currentColor; border-radius:8px; background:rgba(255,255,255,.04); }
     .brand-title { color: var(--orange); font-size: clamp(42px, 6vw, 68px); font-weight: 950; margin:0 0 8px; letter-spacing:.2px; text-shadow:0 0 18px rgba(255,101,0,.18); }
-    .game-info-player { margin:12px auto 4px; max-width:760px; padding:14px 16px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); }
-    .game-info-player h3 { margin:0 0 8px; }
-    .game-rules-text { white-space:pre-wrap; color:var(--muted); margin:0; }
+    .game-info-player { margin:12px auto 4px; max-width:760px; padding:14px 16px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); text-align:center; }
+    .game-info-player h3 { margin:0 0 8px; text-align:center; }
+    .game-rules-text { white-space:pre-wrap; color:var(--muted); margin:0; text-align:center; }
     .player-buzz-details { margin-top:18px; }
 
 
@@ -947,6 +947,16 @@
         <section class="dash-card" data-card="soundboard" data-size="large">
           <div class="dash-head"><h3>🔊 Soundboard</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <label class="message-target"><input id="soundSharePlayers" type="checkbox"><span class="target-stack"><strong>Auch bei Spielern abspielen</strong><span class="small">Ohne Haken hörst nur du den Sound.</span></span></label>
+          <div style="margin-top:10px">
+            <label for="soundVolume"><strong>Sound-Lautstärke</strong> · <span id="soundVolumeLabel">70%</span></label>
+            <input id="soundVolume" type="range" min="0" max="100" value="70" step="5" style="width:100%">
+            <div class="small">Gilt für die Soundboard-Sounds auf diesem Gerät.</div>
+          </div>
+          <div style="margin-top:8px">
+            <label for="countdownVolume"><strong>Countdown-Lautstärke</strong> · <span id="countdownVolumeLabel">35%</span></label>
+            <input id="countdownVolume" type="range" min="0" max="100" value="35" step="5" style="width:100%">
+            <div class="small">Der 5-Sekunden-Countdown ist standardmäßig 50% leiser als die übrigen Sounds.</div>
+          </div>
           <div class="soundboard-grid">
             <button data-sound="correct">✅ Richtige Antwort</button><button data-sound="wrong">❌ Falsche Antwort</button><button data-sound="nextQuestion">❓ Nächste Fragerunde</button><button data-sound="nextMainRound">🎵 Nächste Hauptrunde</button><button data-sound="countdown5">5️⃣ Countdown 5 Sek.</button><button data-sound="timeup">⏰ Zeit!</button><button data-sound="buzzer">🔴 Buzzer</button>
           </div>
@@ -1467,6 +1477,15 @@
     }
 
 
+    let soundVolume = Number(localStorage.getItem('musiklexSoundVolume') ?? 70) / 100;
+    let countdownVolume = Number(localStorage.getItem('musiklexCountdownVolume') ?? 35) / 100;
+
+    function syncSoundVolumeControls() {
+      const master = $('soundVolume'), countdown = $('countdownVolume');
+      if (master) { master.value = Math.round(soundVolume * 100); $('soundVolumeLabel').textContent = `${Math.round(soundVolume*100)}%`; }
+      if (countdown) { countdown.value = Math.round(countdownVolume * 100); $('countdownVolumeLabel').textContent = `${Math.round(countdownVolume*100)}%`; }
+    }
+
     const customSoundFiles = {
       correct: '/sounds/richtige-antwort.mp3',
       wrong: '/sounds/falsche-antwort.mp3',
@@ -1484,6 +1503,7 @@
             customSoundPlayers[sound].preload = 'auto';
           }
           const audio = customSoundPlayers[sound];
+          audio.volume = Math.max(0, Math.min(1, sound === 'countdown5' ? countdownVolume : soundVolume));
           audio.pause();
           audio.currentTime = 0;
           audio.play().catch(() => {});
@@ -1495,7 +1515,7 @@
         const tone = (freq, start, duration, type='sine', gainValue=.12) => {
           const o=audioContext.createOscillator(), g=audioContext.createGain();
           o.type=type; o.frequency.setValueAtTime(freq, now+start);
-          g.gain.setValueAtTime(gainValue, now+start); g.gain.exponentialRampToValueAtTime(.001, now+start+duration);
+          g.gain.setValueAtTime(gainValue * soundVolume, now+start); g.gain.exponentialRampToValueAtTime(.001, now+start+duration);
           o.connect(g); g.connect(audioContext.destination); o.start(now+start); o.stop(now+start+duration);
         };
         if (sound==='timeup') { tone(660,0,.16,'square',.11); tone(660,.22,.16,'square',.11); tone(440,.44,.42,'square',.12); }
@@ -1675,6 +1695,10 @@ $('togglePlayerChat').onclick = () => {
     $('nextAnswerTimer').onclick = () => socket.emit('host-next-answer-timer');
     $('resetAnswerTimer').onclick = () => socket.emit('host-reset-answer-timer');
     $('showPlayerTribune').addEventListener('change', e => socket.emit('host-set-player-tribune-display', e.target.checked));
+    syncSoundVolumeControls();
+    $('soundVolume').addEventListener('input', e => { soundVolume = Number(e.target.value)/100; localStorage.setItem('musiklexSoundVolume', e.target.value); $('soundVolumeLabel').textContent = `${e.target.value}%`; });
+    $('countdownVolume').addEventListener('input', e => { countdownVolume = Number(e.target.value)/100; localStorage.setItem('musiklexCountdownVolume', e.target.value); $('countdownVolumeLabel').textContent = `${e.target.value}%`; });
+
     document.querySelectorAll('[data-sound]').forEach(btn => btn.addEventListener('click', () => { ensureAudio(); socket.emit('host-play-sound', { sound: btn.dataset.sound, share: $('soundSharePlayers').checked }); }));
     $('addTeam').onclick = () => {
       socket.emit('host-add-team', $('newTeamName').value);
