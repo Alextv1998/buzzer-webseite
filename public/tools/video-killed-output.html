@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Video Killed The Audio Star – Ausgabe</title>
+<style>
+html,body{margin:0;width:100%;height:100%;background:#000;overflow:hidden;font-family:Arial,Helvetica,sans-serif;color:#fff}
+#stage{position:fixed;inset:0;background:#000;display:flex;align-items:center;justify-content:center}
+#wrap{position:relative;width:100vw;height:100vh;background:#000;overflow:hidden}
+#yt{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000;pointer-events:none}
+#maskTop{position:absolute;left:0;right:0;top:0;height:74px;background:#000;z-index:4;pointer-events:none}
+#maskCorner{position:absolute;right:0;top:0;width:150px;height:115px;background:#000;z-index:5;pointer-events:none}
+#answer{position:absolute;inset:0;z-index:20;background:rgba(0,0,0,.86);display:none;align-items:center;justify-content:center;text-align:center;padding:40px}
+#answer.show{display:flex}.label{color:#ff9900;font-weight:800;text-transform:uppercase;letter-spacing:.18em;font-size:clamp(14px,2vw,22px);margin-bottom:18px}.title{font-size:clamp(42px,7vw,100px);font-weight:900;line-height:1.02}.artist{margin-top:18px;font-size:clamp(22px,3.5vw,48px);color:#ddd}
+#waiting{position:absolute;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;text-align:center;color:#777;font-weight:700;font-size:clamp(20px,3vw,38px);padding:30px}
+#hint{position:fixed;left:14px;bottom:12px;z-index:30;color:#555;font-size:11px;opacity:.35}
+</style>
+</head>
+<body>
+<div id="stage"><div id="wrap"><iframe id="yt" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe><div id="maskTop"></div><div id="maskCorner"></div><div id="waiting">Warte auf das Video vom Host …</div><div id="answer"><div><div class="label">Auflösung</div><div id="answerTitle" class="title"></div><div id="answerArtist" class="artist"></div></div></div></div></div>
+<div id="hint">Video Killed The Audio Star · Ausgabefenster</div>
+<script>
+const STATE_KEY='musiklexVideoKilledStateV1', COMMAND_KEY='musiklexVideoKilledCommandV1';
+const ch=('BroadcastChannel' in window)?new BroadcastChannel('musiklex-video-killed'):null;
+let currentId=null,currentStart=0,muted=true,volume=100,lastSeq=0;
+function readState(){try{return JSON.parse(localStorage.getItem(STATE_KEY)||'{}')||{}}catch{return{}}}
+function buildUrl(id,start,mute=true,autoplay=true){const p=new URLSearchParams({autoplay:autoplay?'1':'0',mute:mute?'1':'0',controls:'0',rel:'0',modestbranding:'1',playsinline:'1',fs:'0',iv_load_policy:'3',disablekb:'1',enablejsapi:'1'});if(location.origin!=='null')p.set('origin',location.origin);if(start>0)p.set('start',String(start));return `https://www.youtube-nocookie.com/embed/${id}?${p}`}
+function cmd(func,args=[]){const f=document.getElementById('yt');if(f&&f.contentWindow)f.contentWindow.postMessage(JSON.stringify({event:'command',func,args}),'*')}
+function load(st={}){if(!st.videoId)return;currentId=st.videoId;currentStart=Math.max(0,Number(st.start)||0);muted=st.muted!==false;volume=Math.max(0,Math.min(100,Number(st.volume??volume)));document.getElementById('yt').src=buildUrl(currentId,currentStart,muted,true);document.getElementById('waiting').style.display='none';document.getElementById('answer').classList.remove('show');setTimeout(()=>cmd('setVolume',[volume]),900)}
+function handle(m){if(!m||(typeof m.seq==='number'&&m.seq<=lastSeq))return;if(typeof m.seq==='number')lastSeq=m.seq;switch(m.type){case'sync': if(m.state?.videoId&&!currentId)load(m.state);break;case'load':load(m.state||readState());break;case'restart':load(m.state||readState());break;case'play':cmd('playVideo');break;case'pause':cmd('pauseVideo');break;case'mute':muted=true;cmd('mute');break;case'unmute':muted=false;cmd('unMute');cmd('setVolume',[volume]);break;case'volume':volume=Math.max(0,Math.min(100,Number(m.volume)||0));cmd('setVolume',[volume]);break;case'showAnswer':document.getElementById('answerTitle').textContent=m.title||'Unbekannter Song';document.getElementById('answerArtist').textContent=m.artist||'';document.getElementById('answer').classList.add('show');break;case'hideAnswer':document.getElementById('answer').classList.remove('show');break;}}
+if(ch)ch.onmessage=e=>handle(e.data);
+window.addEventListener('storage',e=>{if(e.key===COMMAND_KEY&&e.newValue){try{handle(JSON.parse(e.newValue))}catch{}}});
+window.addEventListener('load',()=>{const st=readState();if(st.videoId)load(st);});
+</script>
+</body></html>

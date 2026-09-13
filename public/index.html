@@ -967,6 +967,33 @@
           <button id="resetSoundVolumes" class="small-button" type="button" style="margin-top:12px">Standard-Lautstärken</button>
         </section>
 
+
+        <section class="dash-card" data-card="videokilled" data-size="large">
+          <div class="dash-head"><h3>🎬 Video Killed The Audio Star</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small">Steuere das Video hier im Host. Die Spieler sehen nur das separate Ausgabefenster.</div>
+          <div style="display:grid;gap:9px;margin-top:12px">
+            <label><strong>YouTube-Link / Video-ID</strong><input id="vkUrl" type="text" placeholder="https://www.youtube.com/watch?v=..." style="margin-top:5px"></label>
+            <div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px">
+              <label><strong>Startsek.</strong><input id="vkStart" type="number" min="0" step="1" value="0" style="margin-top:5px"></label>
+              <label><strong>Songtitel</strong><input id="vkTitle" type="text" placeholder="Titel" style="margin-top:5px"></label>
+              <label><strong>Interpret</strong><input id="vkArtist" type="text" placeholder="Interpret" style="margin-top:5px"></label>
+            </div>
+            <button id="vkOpenWindow" class="host-start" type="button">🖥️ Ausgabefenster öffnen</button>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <button id="vkLoad" class="small-button" type="button">📺 Video stumm laden</button>
+              <button id="vkRestart" class="small-button" type="button">↩️ Neu starten (stumm)</button>
+              <button id="vkPlay" class="small-button" type="button">▶️ Play</button>
+              <button id="vkPause" class="small-button" type="button">⏸️ Pause</button>
+              <button id="vkMute" class="small-button" type="button">🔇 Ton aus</button>
+              <button id="vkUnmute" class="host-start" type="button">🔊 Ton an – ohne Neustart</button>
+              <button id="vkShowAnswer" class="small-button" type="button">✅ Auflösung zeigen</button>
+              <button id="vkHideAnswer" class="small-button" type="button">🙈 Auflösung ausblenden</button>
+            </div>
+            <label><strong>Video-Lautstärke</strong> · <span id="vkVolumeLabel">100%</span><input id="vkVolume" type="range" min="0" max="100" step="5" value="100" style="width:100%;margin-top:5px"></label>
+            <div id="vkStatus" class="small" style="padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.05)">Noch kein Ausgabefenster geöffnet.</div>
+          </div>
+        </section>
+
         <section class="dash-card" data-card="tribune" data-size="wide">
           <div class="dash-head"><h3>🏟️ Team-Tribüne</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <label class="message-target"><input id="showPlayerTribune" type="checkbox"><span class="target-stack"><strong>Tribüne bei Spielern anzeigen</strong><span class="small">Die sichtbaren Spieler und Teams erscheinen auch in der Spieleransicht.</span></span></label>
@@ -2582,6 +2609,87 @@ $('togglePlayerChat').onclick = () => {
       return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
     }
   
+
+    // ===== Video Killed The Audio Star =====
+    const VK_STATE_KEY = 'musiklexVideoKilledStateV1';
+    const VK_COMMAND_KEY = 'musiklexVideoKilledCommandV1';
+    let vkWindow = null;
+    let vkSeq = Date.now();
+    const vkChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('musiklex-video-killed') : null;
+
+    function vkExtractId(url) {
+      url = String(url || '').trim();
+      const patterns = [
+        /(?:youtube\.com\/watch\?v=)([^&\s]+)/,
+        /(?:youtu\.be\/)([^?\s]+)/,
+        /(?:youtube\.com\/shorts\/)([^?\s]+)/,
+        /(?:youtube\.com\/embed\/)([^?\s]+)/
+      ];
+      for (const pattern of patterns) { const m=url.match(pattern); if(m) return m[1]; }
+      return /^[a-zA-Z0-9_-]{11}$/.test(url) ? url : null;
+    }
+
+    function vkSetStatus(text) { const el=$('vkStatus'); if(el) el.textContent=text; }
+    function vkReadState() { try { return JSON.parse(localStorage.getItem(VK_STATE_KEY) || '{}') || {}; } catch { return {}; } }
+    function vkSaveState(patch={}) {
+      const old=vkReadState();
+      const next={...old,...patch,updatedAt:Date.now()};
+      localStorage.setItem(VK_STATE_KEY, JSON.stringify(next));
+      return next;
+    }
+    function vkCurrentFormState() {
+      return {
+        url: $('vkUrl')?.value.trim() || '',
+        videoId: vkExtractId($('vkUrl')?.value || ''),
+        start: Math.max(0, Number($('vkStart')?.value || 0) || 0),
+        title: $('vkTitle')?.value.trim() || '',
+        artist: $('vkArtist')?.value.trim() || '',
+        volume: Math.max(0, Math.min(100, Number($('vkVolume')?.value || 100)))
+      };
+    }
+    function vkSend(type, extra={}) {
+      const payload={seq: ++vkSeq, type, ...extra, sentAt:Date.now()};
+      localStorage.setItem(VK_COMMAND_KEY, JSON.stringify(payload));
+      if(vkChannel) vkChannel.postMessage(payload);
+      return payload;
+    }
+    function vkOpenOutput() {
+      vkSaveState(vkCurrentFormState());
+      vkWindow=window.open('/tools/video-killed-output.html','musiklexVideoKilledOutput','width=1280,height=720,resizable=yes');
+      if(vkWindow) { vkSetStatus('🖥️ Ausgabefenster geöffnet. Steuerung bleibt hier im Host.'); setTimeout(()=>vkSend('sync',{state:vkReadState()}),450); }
+      else vkSetStatus('❌ Popup blockiert. Bitte Popups für diese Seite erlauben.');
+    }
+    function vkLoadVideo() {
+      const st=vkCurrentFormState();
+      if(!st.videoId) return vkSetStatus('❌ Bitte einen gültigen YouTube-Link oder eine Video-ID eingeben.');
+      vkSaveState({...st, muted:true});
+      vkSend('load',{state:{...st,muted:true}});
+      vkSetStatus(`📺 Video geladen · Start ${st.start}s · stumm`);
+    }
+    function vkCommand(type, status) { vkSaveState(vkCurrentFormState()); vkSend(type); vkSetStatus(status); }
+
+    function vkInitPanel() {
+      if(!$('vkOpenWindow')) return;
+      const saved=vkReadState();
+      if(saved.url) $('vkUrl').value=saved.url;
+      if(saved.start!=null) $('vkStart').value=saved.start;
+      if(saved.title!=null) $('vkTitle').value=saved.title;
+      if(saved.artist!=null) $('vkArtist').value=saved.artist;
+      if(saved.volume!=null) { $('vkVolume').value=saved.volume; $('vkVolumeLabel').textContent=`${saved.volume}%`; }
+      $('vkOpenWindow').addEventListener('click',vkOpenOutput);
+      $('vkLoad').addEventListener('click',vkLoadVideo);
+      $('vkRestart').addEventListener('click',()=>{ const st=vkCurrentFormState(); if(!st.videoId) return vkSetStatus('❌ Erst ein Video eintragen.'); vkSaveState({...st,muted:true}); vkSend('restart',{state:{...st,muted:true}}); vkSetStatus('↩️ Video neu gestartet · stumm'); });
+      $('vkPlay').addEventListener('click',()=>vkCommand('play','▶️ Wiedergabe gestartet.'));
+      $('vkPause').addEventListener('click',()=>vkCommand('pause','⏸️ Video pausiert.'));
+      $('vkMute').addEventListener('click',()=>{ vkSaveState({muted:true}); vkSend('mute'); vkSetStatus('🔇 Ton aus · Video läuft an gleicher Stelle weiter.'); });
+      $('vkUnmute').addEventListener('click',()=>{ vkSaveState({muted:false}); vkSend('unmute'); vkSetStatus('🔊 Ton an · Video läuft an gleicher Stelle weiter.'); });
+      $('vkShowAnswer').addEventListener('click',()=>{ const st=vkCurrentFormState(); vkSaveState(st); vkSend('showAnswer',{title:st.title,artist:st.artist}); vkSetStatus('✅ Auflösung eingeblendet.'); });
+      $('vkHideAnswer').addEventListener('click',()=>vkCommand('hideAnswer','🙈 Auflösung ausgeblendet.'));
+      $('vkVolume').addEventListener('input',()=>{ const v=Number($('vkVolume').value); $('vkVolumeLabel').textContent=`${v}%`; vkSaveState({volume:v}); vkSend('volume',{volume:v}); });
+      ['vkUrl','vkStart','vkTitle','vkArtist'].forEach(id=>$(id).addEventListener('change',()=>vkSaveState(vkCurrentFormState())));
+    }
+    window.addEventListener('DOMContentLoaded', vkInitPanel);
+
     window.addEventListener('resize', () => { const b=$('dashboard'); if(b){ b.querySelectorAll('.dash-card').forEach(clampCard); updateDashboardHeight(); saveDashboardLayout(); } });
     window.addEventListener('pagehide', () => { if(dashboardInitialized) saveDashboardLayout(); });
 </script>
