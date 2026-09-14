@@ -93,7 +93,7 @@ function sanitizeTeamSnapshot(rawTeams) {
     return {
       id,
       name: cleanName(raw?.name, `Team ${index + 1}`),
-      score: 0,
+      score: Math.max(-999999, Math.min(999999, Number(raw?.score) || 0)),
       color,
       buzzerLocked: Boolean(raw?.buzzerLocked)
     };
@@ -398,13 +398,14 @@ function publicState() {
     lockRemainingMs: Math.max(0, (player.lockedUntil || 0) - now)
   }));
 
-  // Teampunkte werden immer aus den Einzelpunkten der aktuell zugeordneten
-  // Spieler berechnet. Es gibt keinen separaten Team-Punktestand mehr.
+  // Team.score enthält manuell vergebene Teampunkte. Die sichtbare Gesamtsumme
+  // kombiniert diese mit den Einzelpunkten der aktuell zugeordneten Spieler.
   const publicTeams = teams.map((team) => ({
     ...team,
-    score: players
+    score: (Number(team.score) || 0) + players
       .filter((player) => player.teamId === team.id)
-      .reduce((sum, player) => sum + (Number(player.score) || 0), 0)
+      .reduce((sum, player) => sum + (Number(player.score) || 0), 0),
+    manualScore: Number(team.score) || 0
   }));
 
   return {
@@ -1109,6 +1110,29 @@ io.on('connection', (socket) => {
     const parsed = Number(score);
     if (!player || !Number.isFinite(parsed)) return;
     player.score = Math.max(-999999, Math.min(999999, parsed));
+    broadcastState();
+  });
+
+
+  socket.on('host-change-team-score', ({ id, direction }) => {
+    const team = getTeam(String(id || ''));
+    if (!team) return;
+    const sign = Number(direction) < 0 ? -1 : 1;
+    team.score = Math.max(-999999, Math.min(999999, (Number(team.score) || 0) + sign * pointValue));
+    saveTeamState();
+    broadcastState();
+  });
+
+  socket.on('host-set-team-score', ({ id, score }) => {
+    const team = getTeam(String(id || ''));
+    const parsed = Number(score);
+    if (!team || !Number.isFinite(parsed)) return;
+    const playerSum = Array.from(connectedPlayers.values())
+      .filter(player => player.teamId === team.id)
+      .reduce((sum, player) => sum + (Number(player.score) || 0), 0);
+    // Eingabe meint den sichtbaren Gesamtpunktestand des Teams.
+    team.score = Math.max(-999999, Math.min(999999, parsed - playerSum));
+    saveTeamState();
     broadcastState();
   });
 

@@ -1005,6 +1005,23 @@
           <div id="teamBoard" class="team-board"></div>
         </section>
 
+
+        <section class="dash-card" data-card="teampoints" data-size="large">
+          <div class="dash-head"><h3>🎯 Teampunkte vergeben</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small">Für Spiele, bei denen das Team gemeinsam punktet. Du kannst den sichtbaren Gesamtpunktestand direkt setzen oder mit dem aktuellen Punktewert erhöhen/verringern.</div>
+          <div id="teamPointsControls" style="display:grid;gap:10px;margin-top:12px"></div>
+        </section>
+
+        <section class="dash-card" data-card="notes" data-size="large">
+          <div class="dash-head"><h3>📝 Notizen</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small">Private Host-Notizen. Der Inhalt wird automatisch in diesem Browser gespeichert und ist für Spieler nicht sichtbar.</div>
+          <textarea id="hostNotes" placeholder="Notizen für die Show …" style="width:100%;min-height:220px;margin-top:12px;resize:vertical;box-sizing:border-box"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
+            <span id="hostNotesStatus" class="small">Automatisch gespeichert</span>
+            <button id="clearHostNotes" type="button" class="small-button">Notizen leeren</button>
+          </div>
+        </section>
+
         <section class="dash-card" data-card="teams" data-size="wide">
           <div class="dash-head"><h3>👥 Teams verwalten</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <div class="points-panel"><input id="newTeamName" class="name-input" maxlength="30" placeholder="Neues Team (optional)"><button id="addTeam" class="small-button">Team hinzufügen</button></div>
@@ -1107,7 +1124,7 @@
 
     let teamBackupRestorePending = false;
     function readTeamBackup(){ try{ const raw=localStorage.getItem(TEAM_BACKUP_KEY); return raw ? JSON.parse(raw) : null; }catch(_){ return null; } }
-    function makeTeamBackup(){ const byName={}; (state.players||[]).forEach(p=>{ if(p.name) byName[p.name]=p.teamId||''; }); return {version:2,savedAt:Date.now(),teams:(state.teams||[]).map(t=>({id:t.id,name:t.name,color:t.color,buzzerLocked:!!t.buzzerLocked})),playerTeamsByName:byName}; }
+    function makeTeamBackup(){ const byName={}; (state.players||[]).forEach(p=>{ if(p.name) byName[p.name]=p.teamId||''; }); return {version:2,savedAt:Date.now(),teams:(state.teams||[]).map(t=>({id:t.id,name:t.name,color:t.color,score:Number(t.manualScore)||0,buzzerLocked:!!t.buzzerLocked})),playerTeamsByName:byName}; }
     function saveTeamBackup(){ if(role!=='host' || teamBackupRestorePending) return; try{ const snap=makeTeamBackup(); if(snap.teams.length) localStorage.setItem(TEAM_BACKUP_KEY,JSON.stringify(snap)); }catch(_){} }
     let playerMessages = [];
     let playerChatState = { settings:{privateEnabled:true,teamEnabled:true}, private:[], team:[], teamId:'' };
@@ -2422,6 +2439,18 @@ $('togglePlayerChat').onclick = () => {
         }).join('') : '<div class="small">Noch keine Teams angelegt.</div>';
         bindTeamDrag();
 
+        $('teamPointsControls').innerHTML = state.teams.length ? state.teams.map(team => `
+          <div class="points-panel" style="justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <strong class="team-colored" style="--team-color:${escapeAttribute(team.color || '#777777')};min-width:120px">${escapeHtml(team.name)}</strong>
+            <span class="score">${formatNumber(team.score)} P.</span>
+            <div class="player-actions">
+              <button class="small-button score-button" onclick="changeTeamScore('${jsSafe(team.id)}', 1)">+${formatNumber(state.pointValue)}</button>
+              <button class="small-button score-button" onclick="changeTeamScore('${jsSafe(team.id)}', -1)">−${formatNumber(state.pointValue)}</button>
+              <input class="inline-input" id="team-score-${cssSafe(team.id)}" type="number" step="1" value="${team.score}" style="width:90px">
+              <button class="small-button" onclick="setTeamScore('${jsSafe(team.id)}')">Setzen</button>
+            </div>
+          </div>`).join('') : '<div class="small">Noch keine Teams angelegt.</div>';
+
 
         $('teamTable').innerHTML = state.teams.length
           ? state.teams.map(team => {
@@ -2516,6 +2545,16 @@ $('togglePlayerChat').onclick = () => {
     function setScore(id) {
       const input = document.getElementById(`score-${cssSafe(id)}`);
       if (input) socket.emit('host-set-score', { id, score: input.value });
+    }
+
+
+    function changeTeamScore(id, direction) {
+      socket.emit('host-change-team-score', { id, direction });
+    }
+
+    function setTeamScore(id) {
+      const input = document.getElementById(`team-score-${cssSafe(id)}`);
+      if (input) socket.emit('host-set-team-score', { id, score: input.value });
     }
 
     function setPlayerTeam(id, teamId) {
@@ -2689,6 +2728,34 @@ $('togglePlayerChat').onclick = () => {
       ['vkUrl','vkStart','vkTitle','vkArtist'].forEach(id=>$(id).addEventListener('change',()=>vkSaveState(vkCurrentFormState())));
     }
     window.addEventListener('DOMContentLoaded', vkInitPanel);
+
+
+    // ===== Host-Notizen =====
+    const HOST_NOTES_KEY = 'musiklexHostNotesV1';
+    function initHostNotes() {
+      const area = $('hostNotes');
+      const status = $('hostNotesStatus');
+      const clear = $('clearHostNotes');
+      if (!area) return;
+      area.value = localStorage.getItem(HOST_NOTES_KEY) || '';
+      let timer = null;
+      area.addEventListener('input', () => {
+        if (status) status.textContent = 'Speichert …';
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          localStorage.setItem(HOST_NOTES_KEY, area.value);
+          if (status) status.textContent = '✓ Automatisch gespeichert';
+        }, 250);
+      });
+      clear?.addEventListener('click', () => {
+        if (!area.value || confirm('Alle Host-Notizen wirklich leeren?')) {
+          area.value = '';
+          localStorage.removeItem(HOST_NOTES_KEY);
+          if (status) status.textContent = 'Notizen geleert';
+        }
+      });
+    }
+    window.addEventListener('DOMContentLoaded', initHostNotes);
 
     window.addEventListener('resize', () => { const b=$('dashboard'); if(b){ b.querySelectorAll('.dash-card').forEach(clampCard); updateDashboardHeight(); saveDashboardLayout(); } });
     window.addEventListener('pagehide', () => { if(dashboardInitialized) saveDashboardLayout(); });
