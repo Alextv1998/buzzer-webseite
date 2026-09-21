@@ -18,6 +18,20 @@ const DEFAULT_HOST_PASSWORD_HASH = '443f83e7519ed299c287829e475ac5827d73f528b153
 const HOST_PASSWORD_HASH = String(process.env.HOST_PASSWORD_HASH || DEFAULT_HOST_PASSWORD_HASH).toLowerCase();
 function passwordHash(value) { return crypto.createHash('sha256').update(String(value || ''), 'utf8').digest('hex'); }
 
+app.use(express.json({ limit: '32kb' }));
+
+// Lokaler Global-Hotkey-Bridge: Der Windows-Helfer sendet nur die gedrückte
+// Tastenkombination. Die eigentliche Belegung bleibt im Host-Browser gespeichert.
+app.post('/api/local-hotkey', (req, res) => {
+  const ip = String(req.socket.remoteAddress || '');
+  const local = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
+  if (!local) return res.status(403).json({ ok: false });
+  const signature = String(req.body?.signature || '').slice(0, 80);
+  if (!signature) return res.status(400).json({ ok: false });
+  io.emit('global-hotkey', { signature });
+  res.json({ ok: true });
+});
+
 app.use(express.static(path.join(__dirname, 'public')));
 
 let roundOpen = false;
