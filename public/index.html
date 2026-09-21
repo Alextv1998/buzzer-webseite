@@ -759,6 +759,14 @@
       }
     }
 
+
+    .chat-image { display:block; max-width:min(100%,360px); max-height:260px; margin-top:7px; border-radius:9px; cursor:zoom-in; object-fit:contain; background:#070a10; }
+    .chat-image-button { width:auto; padding:8px 10px; }
+    .hotkey-status { font-weight:900; padding:7px 10px; border-radius:9px; display:inline-block; }
+    .hotkey-status.on { background:#173d28; color:#7ef0a8; } .hotkey-status.off { background:#492126; color:#ff9aa2; }
+    .hotkey-row { display:grid; grid-template-columns:minmax(150px,1fr) 150px auto; gap:8px; align-items:center; margin:7px 0; }
+    .hotkey-key { text-align:center; font-weight:800; }
+    @media(max-width:650px){.hotkey-row{grid-template-columns:1fr}.hotkey-row button{width:100%}}
 </style>
 </head>
 <body>
@@ -824,7 +832,7 @@
             </div>
             <div id="playerChatDisabled" class="chat-disabled hidden"></div>
             <div id="playerChatLog" class="chat-log"></div>
-            <div id="playerChatCompose" class="chat-compose"><input id="playerChatInput" maxlength="500" placeholder="Nachricht schreiben …"><button id="playerChatSend" type="button">Senden</button></div>
+            <div id="playerChatCompose" class="chat-compose"><input id="playerChatInput" maxlength="500" placeholder="Nachricht schreiben …"><div style="display:flex;gap:6px"><button id="playerChatImage" class="chat-image-button" type="button" title="Bild senden">🖼️</button><button id="playerChatSend" type="button">Senden</button></div><input id="playerChatImageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></div>
             <div id="playerAnswerPanel" class="answer-entry-panel hidden">
               <div class="answer-entry-title">Geheime Antwort einloggen</div>
               <div id="playerAnswerTeamLabel" class="answer-team-label"></div>
@@ -1012,6 +1020,13 @@
           <div id="teamPointsControls" style="display:grid;gap:10px;margin-top:12px"></div>
         </section>
 
+        <section class="dash-card" data-card="hotkeys" data-size="large">
+          <div class="dash-head"><h3>⌨️ Hotkeys</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="controls" style="justify-content:space-between"><label><input id="hotkeysEnabled" type="checkbox" checked> Hotkeys aktiv</label><span id="hotkeyStatus" class="hotkey-status on">🟢 HOTKEYS AKTIV</span></div>
+          <label class="message-target"><input id="hotkeysIgnoreInputs" type="checkbox" checked><span class="target-stack"><strong>In Textfeldern ignorieren</strong><span class="small">Verhindert Auslösen beim Schreiben.</span></span></label>
+          <div id="hotkeyRows" style="margin-top:10px"></div>
+          <div class="small">„Belegen“ drücken und danach die gewünschte Taste oder Tastenkombination am Stream Deck/Fußpedal drücken. Jede Belegung kann einzeln deaktiviert werden.</div>
+        </section>
         <section class="dash-card" data-card="notes" data-size="large">
           <div class="dash-head"><h3>📝 Notizen</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <div class="small">Private Host-Notizen. Der Inhalt wird automatisch in diesem Browser gespeichert und ist für Spieler nicht sichtbar.</div>
@@ -1044,7 +1059,7 @@
             <div class="host-chat-main">
               <div class="chat-channel-title" id="hostChatTitle">Chat auswählen</div>
               <div id="hostChatLog" class="chat-log host-chat-log"></div>
-              <div class="chat-compose"><input id="hostChatInput" maxlength="500" placeholder="Nachricht schreiben …"><button id="hostChatSend" type="button">Senden</button></div>
+              <div class="chat-compose"><input id="hostChatInput" maxlength="500" placeholder="Nachricht schreiben …"><div style="display:flex;gap:6px"><button id="hostChatImage" class="chat-image-button" type="button" title="Bild senden">🖼️</button><button id="hostChatSend" type="button">Senden</button></div><input id="hostChatImageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></div>
               <div class="controls" style="margin-top:8px"><button id="clearHostChat" class="host-reset" type="button">Verlauf dieses Chats löschen</button><span id="hostChatStatus" class="small">Privat- und Teamchats sind getrennt.</span></div>
             </div>
           </div>
@@ -1703,6 +1718,8 @@ $('togglePlayerChat').onclick = () => {
     $('playerChatNotice').onclick = () => openUnreadPlayerChat();
     $('playerChatNotice').addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openUnreadPlayerChat(); } });
     $('playerChatSend').onclick = sendPlayerChatMessage;
+    $('playerChatImage').onclick=()=>$('playerChatImageInput').click();
+    $('playerChatImageInput').onchange=e=>{const f=e.target.files?.[0]; if(!f)return; chatImagePayload(f,image=>{const settings=playerChatState.settings||{}; if(playerChatChannel==='host'&&!settings.privateEnabled)return; if(playerChatChannel==='team'&&(!settings.teamEnabled||!playerChatState.teamId))return; socket.emit('player-chat-send',{channel:playerChatChannel,message:'',image});}); e.target.value='';};
     $('playerChatInput').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendPlayerChatMessage(); } });
     $('playerAnswerSubmit').onclick = submitPlayerAnswer;
     $('playerAnswerInput').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); submitPlayerAnswer(); } });
@@ -1714,6 +1731,36 @@ $('togglePlayerChat').onclick = () => {
       e.preventDefault();
       buzz();
     });
+
+    const HOTKEY_STORAGE='musiklexHotkeysV1';
+    const hotkeyActions=[
+      ['startRound','Buzzer freigeben'],['closeRound','Buzzer sperren'],['resetRound','Buzzer zurücksetzen'],
+      ['restartAnswerTimer','Antworttimer neu starten'],['nextAnswerTimer','Falsch → nächster Spieler'],['resetAnswerTimer','Antworttimer zurücksetzen'],
+      ['revealAnswers','Antworten aufdecken'],['resetAnswers','Antworten zurücksetzen'],
+      ['sound:correct','Sound: Richtige Antwort'],['sound:wrong','Sound: Falsche Antwort'],['sound:nextQuestion','Sound: Nächste Fragerunde'],['sound:nextMainRound','Sound: Nächste Hauptrunde'],
+      ['vkPlay','Video: Play'],['vkPause','Video: Pause'],['vkMute','Video: Ton aus'],['vkUnmute','Video: Ton an']
+    ];
+    let hotkeyConfig={enabled:true,ignoreInputs:true,keys:{}}; let hotkeyLearning=null;
+    try{const v=JSON.parse(localStorage.getItem(HOTKEY_STORAGE)||'null');if(v)hotkeyConfig={...hotkeyConfig,...v,keys:{...hotkeyConfig.keys,...(v.keys||{})}}}catch(_){ }
+    function keySignature(e){const mods=[];if(e.ctrlKey)mods.push('Ctrl');if(e.altKey)mods.push('Alt');if(e.shiftKey)mods.push('Shift');if(e.metaKey)mods.push('Meta');let k=e.code||e.key;if(['ControlLeft','ControlRight','AltLeft','AltRight','ShiftLeft','ShiftRight','MetaLeft','MetaRight'].includes(k))return '';return [...mods,k].join('+')}
+    function saveHotkeys(){localStorage.setItem(HOTKEY_STORAGE,JSON.stringify(hotkeyConfig))}
+    function renderHotkeys(){
+      $('hotkeysEnabled').checked=hotkeyConfig.enabled;$('hotkeysIgnoreInputs').checked=hotkeyConfig.ignoreInputs;
+      $('hotkeyStatus').textContent=hotkeyConfig.enabled?'🟢 HOTKEYS AKTIV':'🔴 HOTKEYS DEAKTIVIERT';$('hotkeyStatus').className='hotkey-status '+(hotkeyConfig.enabled?'on':'off');
+      $('hotkeyRows').innerHTML=hotkeyActions.map(([id,label])=>{const c=hotkeyConfig.keys[id]||{key:'',enabled:true};return `<div class="hotkey-row"><label><input type="checkbox" ${c.enabled!==false?'checked':''} onchange="setHotkeyEnabled('${id}',this.checked)"> ${label}</label><div class="hotkey-key">${escapeHtml(c.key||'—')}</div><button type="button" onclick="learnHotkey('${id}',this)">${hotkeyLearning===id?'Taste drücken …':'Belegen'}</button></div>`}).join('');
+    }
+    window.setHotkeyEnabled=(id,v)=>{hotkeyConfig.keys[id]={...(hotkeyConfig.keys[id]||{}),enabled:v};saveHotkeys();renderHotkeys()};
+    window.learnHotkey=(id)=>{hotkeyLearning=id;renderHotkeys()};
+    function triggerHotkeyAction(id){if(id.startsWith('sound:')){const sound=id.split(':')[1];ensureAudio();socket.emit('host-play-sound',{sound,share:$('soundSharePlayers').checked,volume:soundVolumeFor(sound)});return} const el=$(id);if(el&&!el.disabled)el.click()}
+    $('hotkeysEnabled').onchange=e=>{hotkeyConfig.enabled=e.target.checked;saveHotkeys();renderHotkeys()};
+    $('hotkeysIgnoreInputs').onchange=e=>{hotkeyConfig.ignoreInputs=e.target.checked;saveHotkeys()};
+    document.addEventListener('keydown',e=>{
+      if(role!=='host')return;
+      if(hotkeyLearning){e.preventDefault();const sig=keySignature(e);if(!sig)return;hotkeyConfig.keys[hotkeyLearning]={key:sig,enabled:true};hotkeyLearning=null;saveHotkeys();renderHotkeys();return}
+      if(!hotkeyConfig.enabled||e.repeat)return;const tag=document.activeElement?.tagName;if(hotkeyConfig.ignoreInputs&&(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||document.activeElement?.isContentEditable))return;
+      const sig=keySignature(e);const hit=hotkeyActions.find(([id])=>{const c=hotkeyConfig.keys[id];return c&&c.enabled!==false&&c.key===sig});if(hit){e.preventDefault();triggerHotkeyAction(hit[0])}
+    });
+    renderHotkeys();
 
     $('startRound').onclick = () => { ensureAudio(); socket.emit('host-start'); };
     $('closeRound').onclick = () => {
@@ -1784,6 +1831,8 @@ $('togglePlayerChat').onclick = () => {
     $('privateChatEnabled').addEventListener('change', sendChatSettings);
     $('teamChatEnabled').addEventListener('change', sendChatSettings);
     $('hostChatSend').onclick = sendHostChatMessage;
+    $('hostChatImage').onclick=()=>$('hostChatImageInput').click();
+    $('hostChatImageInput').onchange=e=>{const f=e.target.files?.[0]; if(!f||!hostChatSelection.id)return; chatImagePayload(f,image=>socket.emit('host-chat-send',{channelType:hostChatSelection.type,targetId:hostChatSelection.id,message:'',image})); e.target.value='';};
     $('hostChatInput').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendHostChatMessage(); } });
     $('clearHostChat').onclick = () => {
       if(!hostChatSelection.id) return;
@@ -1970,7 +2019,14 @@ $('togglePlayerChat').onclick = () => {
 
     function chatLineHtml(item, mine) {
       const cls = `chat-line${mine?' mine':''}`;
-      return `<div class="${cls}"><div class="chat-author">${escapeHtml(item.senderName || (item.senderType==='host'?'Host':'Spieler'))}</div><div>${escapeHtml(item.message)}</div><div class="chat-time">${chatTime(item.sentAt)}</div></div>`;
+      const imageHtml=item.image?.dataUrl?`<img class="chat-image" src="${escapeAttribute(item.image.dataUrl)}" alt="${escapeAttribute(item.image.name||'Chat-Bild')}" title="Zum Vergrößern klicken" onclick="window.open(this.src,'_blank')">`:''; return `<div class="${cls}"><div class="chat-author">${escapeHtml(item.senderName || (item.senderType==='host'?'Host':'Spieler'))}</div>${item.message?`<div>${escapeHtml(item.message)}</div>`:''}${imageHtml}<div class="chat-time">${chatTime(item.sentAt)}</div></div>`;
+    }
+
+    function chatImagePayload(file, done) {
+      if(!file) return;
+      if(!/^image\/(png|jpeg|gif|webp)$/.test(file.type)){ alert('Bitte PNG, JPG, GIF oder WebP verwenden.'); return; }
+      if(file.size>1500000){ alert('Das Bild darf maximal 1,5 MB groß sein.'); return; }
+      const r=new FileReader(); r.onload=()=>done({name:file.name,dataUrl:r.result}); r.readAsDataURL(file);
     }
 
     function sendPlayerChatMessage() {
@@ -2096,7 +2152,7 @@ $('togglePlayerChat').onclick = () => {
       }
 
       $('playerChatInput').disabled=!enabled;
-      $('playerChatSend').disabled=!enabled;
+      $('playerChatSend').disabled=!enabled; $('playerChatImage').disabled=!enabled;
       $('playerChatInput').placeholder='Nachricht schreiben …';
 
       const items=playerChatChannel==='host'?(playerChatState.private||[]):(playerChatState.team||[]);
@@ -2139,7 +2195,7 @@ $('togglePlayerChat').onclick = () => {
       const messages=(hostChatState.messages||[]).filter(m=>hostChatSelection.type==='private'?(m.scope==='private'&&m.playerId===hostChatSelection.id):(m.scope==='team'&&m.teamId===hostChatSelection.id));
       const log=$('hostChatLog'); const hostDist=log.scrollHeight-log.scrollTop-log.clientHeight; const hostNearBottom=hostDist<48; const hostPrevTop=log.scrollTop; log.innerHTML=messages.length?messages.map(m=>chatLineHtml(m,m.senderType==='host')).join(''):'<div class="small">Noch keine Nachrichten.</div>'; if(hostNearBottom) log.scrollTop=log.scrollHeight; else log.scrollTop=hostPrevTop;
       const enabled=hostChatSelection.type==='private'?settings.privateEnabled:settings.teamEnabled;
-      $('hostChatInput').disabled=!hostChatSelection.id||!enabled; $('hostChatSend').disabled=!hostChatSelection.id||!enabled; $('clearHostChat').disabled=!hostChatSelection.id;
+      $('hostChatInput').disabled=!hostChatSelection.id||!enabled; $('hostChatSend').disabled=!hostChatSelection.id||!enabled; $('hostChatImage').disabled=!hostChatSelection.id||!enabled; $('clearHostChat').disabled=!hostChatSelection.id;
       $('hostChatStatus').textContent=!enabled?'Dieser Chattyp ist derzeit gesperrt.':'Privat- und Teamchats sind getrennt.';
     }
 

@@ -182,6 +182,16 @@ function addChatMessage(message) {
   trimChatHistory();
 }
 
+function cleanChatImage(image) {
+  if (!image || typeof image !== 'object') return null;
+  const dataUrl = String(image.dataUrl || '');
+  const name = String(image.name || 'Bild').replace(/[\r\n<>]/g, '').slice(0, 120);
+  if (!/^data:image\/(png|jpeg|jpg|gif|webp);base64,[A-Za-z0-9+/=]+$/i.test(dataUrl)) return null;
+  // ca. 1.5 MB Binärdaten; schützt den Server vor riesigen Socket-Nachrichten.
+  if (dataUrl.length > 2100000) return null;
+  return { dataUrl, name };
+}
+
 
 // Separates Antwortsystem.
 // Antworten sind KEINE Chatnachrichten. Pro Team (oder unzugeordnetem Spieler)
@@ -724,10 +734,11 @@ io.on('connection', (socket) => {
     broadcastState();
   });
 
-  socket.on('player-chat-send', ({ channel, message }) => {
+  socket.on('player-chat-send', ({ channel, message, image }) => {
     const player = connectedPlayers.get(socket.id);
     const text = cleanMessage(message);
-    if (!player || !text) return;
+    const chatImage = cleanChatImage(image);
+    if (!player || (!text && !chatImage)) return;
 
     const mode = String(channel || 'host');
     if (mode === 'host') {
@@ -738,7 +749,7 @@ io.on('connection', (socket) => {
       const item = {
         id: chatMessageId(), scope: 'private', playerId: player.id,
         senderType: 'player', senderId: player.id, senderName: player.name,
-        message: text, sentAt: Date.now()
+        message: text, image: chatImage, sentAt: Date.now()
       };
       addChatMessage(item);
       socket.emit('chat-message-sent', item);
@@ -764,7 +775,7 @@ io.on('connection', (socket) => {
       const item = {
         id: chatMessageId(), scope: 'team', teamId: player.teamId,
         senderType: 'player', senderId: player.id, senderName: player.name,
-        message: text, sentAt: Date.now()
+        message: text, image: chatImage, sentAt: Date.now()
       };
       addChatMessage(item);
       for (const teammate of connectedPlayers.values()) {
@@ -782,9 +793,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  socket.on('host-chat-send', ({ channelType, targetId, message }) => {
+  socket.on('host-chat-send', ({ channelType, targetId, message, image }) => {
     const text = cleanMessage(message);
-    if (!text) return;
+    const chatImage = cleanChatImage(image);
+    if (!text && !chatImage) return;
     const type = String(channelType || 'private');
     const id = String(targetId || '');
 
@@ -794,7 +806,7 @@ io.on('connection', (socket) => {
       const item = {
         id: chatMessageId(), scope: 'private', playerId: player.id,
         senderType: 'host', senderId: 'host', senderName: 'Host',
-        message: text, sentAt: Date.now()
+        message: text, image: chatImage, sentAt: Date.now()
       };
       addChatMessage(item);
       io.to(player.id).emit('chat-new-message', item);
@@ -810,7 +822,7 @@ io.on('connection', (socket) => {
       const item = {
         id: chatMessageId(), scope: 'team', teamId: team.id,
         senderType: 'host', senderId: 'host', senderName: 'Host',
-        message: text, sentAt: Date.now()
+        message: text, image: chatImage, sentAt: Date.now()
       };
       addChatMessage(item);
       for (const player of connectedPlayers.values()) {
