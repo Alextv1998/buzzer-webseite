@@ -20,14 +20,13 @@ function passwordHash(value) { return crypto.createHash('sha256').update(String(
 
 app.use(express.json({ limit: '32kb' }));
 
-// Lokaler Global-Hotkey-Bridge: Der Windows-Helfer sendet nur die gedrückte
-// Tastenkombination. Die eigentliche Belegung bleibt im Host-Browser gespeichert.
-app.post('/api/local-hotkey', (req, res) => {
-  const ip = String(req.socket.remoteAddress || '');
-  const local = ip === '127.0.0.1' || ip === '::1' || ip === '::ffff:127.0.0.1';
-  if (!local) return res.status(403).json({ ok: false });
+// Musiklex Global Hotkey Helper: accepts a hotkey from the standalone Windows helper.
+// Authentication uses the same host password as the browser host login.
+app.post('/api/global-hotkey', (req, res) => {
   const signature = String(req.body?.signature || '').slice(0, 80);
-  if (!signature) return res.status(400).json({ ok: false });
+  const password = String(req.body?.password || '');
+  if (!signature) return res.status(400).json({ ok: false, error: 'missing_signature' });
+  if (passwordHash(password) !== HOST_PASSWORD_HASH) return res.status(401).json({ ok: false, error: 'unauthorized' });
   io.emit('global-hotkey', { signature });
   res.json({ ok: true });
 });
