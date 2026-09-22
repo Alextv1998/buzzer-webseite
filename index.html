@@ -1,0 +1,2927 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Online Buzzer</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #10131a;
+      --panel: #1a1f2b;
+      --panel2: #242b3a;
+      --text: #f7f7fb;
+      --muted: #adb6c8;
+      --accent: #ff3b30;
+      --green: #2ecc71;
+      --yellow: #f1c40f;
+      --orange: #ff6500;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #20283a 0, var(--bg) 45%);
+      color: var(--text);
+      min-height: 100vh;
+    }
+    .wrap { width: 100%; max-width: none; margin: 0; padding: 24px clamp(14px, 2vw, 34px) 50px; }
+    h1 { margin: 0 0 8px; font-size: clamp(30px, 6vw, 52px); }
+    p { color: var(--muted); }
+    .card {
+      background: rgba(26,31,43,.94);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 20px;
+      padding: 20px;
+      margin-top: 18px;
+      box-shadow: 0 18px 50px rgba(0,0,0,.25);
+    }
+    .role-buttons, .controls { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    button, input, select, textarea {
+      border-radius: 14px;
+      border: 1px solid rgba(255,255,255,.12);
+      font: inherit;
+    }
+    button {
+      cursor: pointer;
+      color: white;
+      background: var(--panel2);
+      padding: 13px 18px;
+      font-weight: 700;
+    }
+    button:hover { filter: brightness(1.08); }
+    input, select, textarea {
+      width: 100%;
+      padding: 14px 16px;
+      background: #111621;
+      color: white;
+      outline: none;
+    }
+    .inline-input { width: 110px; padding: 9px 11px; border-radius: 10px; }
+    .name-input { width: 170px; padding: 9px 11px; border-radius: 10px; }
+    .small-button { padding: 9px 12px; border-radius: 10px; }
+    .score-button { min-width: 62px; }
+    .hidden { display: none !important; }
+    .buzzer {
+      width: min(72vw, 330px);
+      aspect-ratio: 1;
+      border-radius: 50%;
+      display: block;
+      margin: 30px auto 18px;
+      background: radial-gradient(circle at 35% 30%, #ff756e, #e32218 48%, #8d0d08 80%);
+      border: 12px solid #5e0805;
+      font-size: clamp(30px, 7vw, 54px);
+      box-shadow: 0 18px 0 #410503, 0 28px 45px rgba(0,0,0,.45);
+      transition: transform .08s ease, box-shadow .08s ease, filter .2s ease;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    .buzzer:active:not(:disabled), .buzzer.keyboard-pressed:not(:disabled) {
+      transform: translateY(10px);
+      box-shadow: 0 8px 0 #410503, 0 18px 30px rgba(0,0,0,.4);
+    }
+    .buzzer:disabled { filter: grayscale(.8) brightness(.55); cursor: not-allowed; }
+    .status {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 800;
+      margin-top: 10px;
+    }
+    .open { color: var(--green); }
+    .closed { color: var(--yellow); }
+    .early { color: var(--orange); }
+    .host-start { background: #177245; }
+    .host-close { background: #895600; }
+    .host-reset { background: #7d1c18; }
+    table { width: 100%; border-collapse: collapse; margin-top: 14px; }
+    th, td { padding: 12px 10px; border-bottom: 1px solid rgba(255,255,255,.08); text-align: left; vertical-align: middle; }
+    th { color: var(--muted); font-weight: 600; }
+    #buzzTable tr:first-child td { font-weight: 800; font-size: 1.08em; }
+    .winner { color: #ffd54a; }
+    .back { margin-top: 20px; background: transparent; }
+    .small { font-size: 14px; color: var(--muted); }
+    .hint { text-align:center; font-size: 16px; color: var(--muted); }
+    .points-panel {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin: 18px 0 8px;
+      padding: 14px;
+      background: rgba(255,255,255,.04);
+      border-radius: 14px;
+    }
+    .points-panel label { font-weight: 700; }
+    .score { font-size: 1.2em; font-weight: 800; min-width: 58px; }
+    .player-actions { display: flex; gap: 7px; flex-wrap: wrap; align-items: center; }
+
+    .team-board { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin:14px 0 20px; }
+    .team-card { border:2px solid var(--team-color,#666); border-radius:16px; padding:14px; background:rgba(255,255,255,.035); min-width:0; }
+    .team-card.dragging { opacity:.45; }
+    .team-card-head { display:flex; gap:9px; align-items:center; justify-content:space-between; }
+    .team-dot { width:16px; height:16px; border-radius:50%; background:var(--team-color); flex:0 0 auto; }
+    .team-score-big { font-size:2rem; font-weight:900; margin:8px 0 4px; }
+    .team-members { color:var(--muted); font-size:14px; overflow-wrap:anywhere; }
+    .team-tools { display:flex; gap:7px; flex-wrap:wrap; margin-top:10px; }
+    .team-lockbar { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:12px 0; }
+    .locked-note { color:var(--yellow); font-weight:700; }
+    input[type=color] { width:48px; height:40px; padding:3px; cursor:pointer; }
+    .team-colored { color: var(--team-color, var(--text)); font-weight: 800; }
+    .lock-on { background:#7d1c18; }
+    .lock-off { background:#177245; }
+    #helloPlayer { display:inline-block; padding:8px 12px; border-left:6px solid currentColor; border-radius:8px; background:rgba(255,255,255,.04); }
+    .brand-title { color: var(--orange); font-size: clamp(42px, 6vw, 68px); font-weight: 950; margin:0 0 8px; letter-spacing:.2px; text-shadow:0 0 18px rgba(255,101,0,.18); }
+    .game-info-player { margin:12px auto 4px; max-width:760px; padding:14px 16px; border:1px solid rgba(255,255,255,.09); border-radius:14px; background:rgba(255,255,255,.035); text-align:center; }
+    .game-info-player h3 { margin:0 0 8px; text-align:center; }
+    .game-rules-text { white-space:pre-wrap; color:var(--muted); margin:0; text-align:center; }
+    .player-buzz-details { margin-top:18px; }
+
+
+    .message-box { border:1px solid rgba(255,255,255,.12); border-radius:14px; padding:14px; background:rgba(255,255,255,.035); margin:12px 0; }
+    .message-box strong { display:block; margin-bottom:5px; }
+    .message-text { white-space:pre-wrap; overflow-wrap:anywhere; color:var(--text); }
+    .message-meta { color:var(--muted); font-size:12px; margin-top:7px; }
+    .message-targets { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:8px; margin:10px 0; max-height:230px; overflow:auto; padding-right:4px; }
+    .message-target { display:flex; gap:10px; align-items:center; min-height:40px; padding:8px 10px; border:1px solid rgba(255,255,255,.08); border-radius:10px; background:rgba(255,255,255,.025); }
+    .message-target strong { display:inline; margin:0; }
+    .message-target .target-note { color:var(--muted); margin-left:6px; }
+    .message-target .target-inline { display:flex; align-items:baseline; gap:7px; min-width:0; flex-wrap:wrap; }
+    .message-target .target-inline .small { margin:0; }
+    .message-target .target-stack { display:block; min-width:0; line-height:1.3; }
+    .message-target .target-stack .small { display:block; margin-top:3px; white-space:normal; }
+    .message-target input { width:auto; margin:0; accent-color:currentColor; }
+    #hostMessage { min-height:88px; resize:vertical; }
+    #playerMessages { margin-top:12px; }
+    .chat-shell { margin:16px 0 20px; border:1px solid rgba(255,255,255,.12); border-radius:16px; overflow:hidden; background:rgba(10,14,22,.72); }
+    .chat-head { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:11px 13px; background:rgba(255,255,255,.045); }
+    .chat-head strong { font-size:15px; }
+    .chat-collapse { width:auto; padding:7px 10px; border-radius:9px; }
+    .chat-body { padding:12px; }
+    .chat-shell.collapsed .chat-body { display:none; }
+    .chat-tabs { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:10px; }
+    .chat-tab { width:auto; padding:8px 12px; border-radius:999px; position:relative; }
+    .chat-tab.active { background:#ff6500; color:#111; }
+    .chat-badge { display:inline-grid; place-items:center; min-width:19px; height:19px; padding:0 5px; margin-left:5px; border-radius:999px; background:#d83d34; color:#fff; font-size:11px; }
+    .chat-log { height:220px; overflow:auto; display:flex; flex-direction:column; gap:8px; padding:9px; border:1px solid rgba(255,255,255,.08); border-radius:12px; background:#0c111a; }
+    .chat-line { max-width:88%; padding:8px 10px; border-radius:11px; background:#202838; overflow-wrap:anywhere; }
+    .chat-line.mine { margin-left:auto; background:#59301b; }
+    .chat-line .chat-author { font-size:11px; font-weight:800; color:#ffad66; margin-bottom:3px; }
+    .chat-line .chat-time { font-size:10px; color:var(--muted); margin-top:4px; }
+    .chat-compose { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:8px; margin-top:9px; }
+    .chat-compose input { min-width:0; }
+    .chat-compose button { white-space:nowrap; }
+    .chat-disabled { padding:9px 10px; border-radius:10px; background:#3d2020; color:#ffb7b2; margin-bottom:8px; font-size:13px; }
+    .host-chat-layout { display:grid; grid-template-columns:210px minmax(0,1fr); gap:10px; min-height:330px; }
+    .host-chat-channels { border:1px solid rgba(255,255,255,.08); border-radius:11px; padding:7px; overflow:auto; max-height:420px; }
+    .host-chat-channel { width:100%; text-align:left; padding:9px 10px; border-radius:9px; margin-bottom:5px; background:rgba(255,255,255,.035); font-size:12px; }
+    .host-chat-channel.active { background:#ff6500; color:#111; }
+    .host-chat-main { min-width:0; }
+    .host-chat-log { height:260px; }
+    .chat-settings { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:9px; }
+    .chat-settings label { display:flex; align-items:center; gap:7px; padding:7px 9px; border:1px solid rgba(255,255,255,.08); border-radius:9px; font-size:12px; }
+    .chat-settings input { width:auto; margin:0; }
+    .chat-channel-title { font-weight:900; margin-bottom:7px; }
+    @media(max-width:760px){ .host-chat-layout{grid-template-columns:1fr}.host-chat-channels{max-height:150px}.chat-log{height:180px} }
+
+
+    #playerView #playerChatShell { margin:14px 0 18px; width:100%; }
+    .buzzer { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:7px; }
+    .buzzer-main-label { display:block; line-height:1; }
+    .buzzer-state-label {
+      display:block;
+      font-size:clamp(13px,1.7vw,18px);
+      letter-spacing:.12em;
+      font-weight:900;
+      opacity:.9;
+      text-transform:uppercase;
+    }
+
+    /* Alte responsive Chat-Regeln (nicht mehr für das Layout verwendet) */
+    .player-main-grid {
+      display:grid;
+      grid-template-columns:minmax(320px, 1fr) minmax(340px, 430px);
+      gap:20px;
+      align-items:start;
+      margin-top:14px;
+    }
+    .player-buzzer-zone {
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      align-items:center;
+      justify-content:flex-start;
+    }
+    .player-main-grid .chat-shell {
+      margin:0;
+      width:100%;
+      min-width:0;
+    }
+    .player-main-grid .chat-log { height:300px; }
+    .player-chat-notice {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      margin:12px 0 0;
+      padding:11px 13px;
+      border:1px solid rgba(255,101,0,.55);
+      border-radius:12px;
+      background:rgba(255,101,0,.10);
+      color:#ffd0ad;
+      font-weight:800;
+      cursor:pointer;
+      animation:chatNoticePulse 1.2s ease-in-out infinite alternate;
+    }
+    .player-chat-notice .notice-count {
+      display:inline-grid;
+      place-items:center;
+      min-width:26px;
+      height:26px;
+      padding:0 7px;
+      border-radius:999px;
+      background:#d83d34;
+      color:#fff;
+      font-size:13px;
+      flex:0 0 auto;
+    }
+    @keyframes chatNoticePulse {
+      from { box-shadow:0 0 0 rgba(255,101,0,0); }
+      to { box-shadow:0 0 18px rgba(255,101,0,.26); }
+    }
+    .chat-head-title {
+      display:flex;
+      align-items:center;
+      gap:7px;
+      min-width:0;
+    }
+    .chat-head-unread {
+      display:inline-grid;
+      place-items:center;
+      min-width:21px;
+      height:21px;
+      padding:0 6px;
+      border-radius:999px;
+      background:#d83d34;
+      color:white;
+      font-size:11px;
+    }
+    .chat-shell.has-unread { border-color:rgba(255,101,0,.65); }
+    @media(max-width:900px) {
+      .player-main-grid { grid-template-columns:1fr; }
+      .player-main-grid .chat-shell { order:2; }
+      .player-buzzer-zone { order:1; }
+      .player-main-grid .chat-log { height:220px; }
+    }
+
+    .host-login-error { color:#ff7b72; min-height:22px; margin-top:8px; font-weight:700; }
+    .kick-button { background:#7d1c18 !important; color:#fff !important; }
+
+
+    /* Frei positionierbares Host-Dashboard */
+    #hostView.card { padding: 16px; }
+    .host-topbar { display:flex; gap:12px; align-items:center; justify-content:space-between; flex-wrap:wrap; margin-bottom:14px; }
+    .host-topbar h2 { margin:0; }
+    .layout-actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .dashboard { position:relative; min-height:900px; width:100%; border:1px dashed rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.015); overflow:hidden; }
+    .dash-card { position:absolute; width:360px; background:rgba(16,20,30,.96); border:1px solid rgba(255,255,255,.09); border-radius:16px; padding:14px; min-width:260px; min-height:150px; max-width:calc(100% - 8px); overflow:auto; box-sizing:border-box; resize:both; }
+    .dash-card::after { content:'↘'; position:absolute; right:5px; bottom:2px; color:var(--muted); font-size:15px; pointer-events:none; opacity:.8; }
+    .dash-card[data-size="small"] { width:300px; }
+    .dash-card[data-size="medium"] { width:380px; }
+    .dash-card[data-size="large"] { width:520px; }
+    .dash-card[data-size="wide"] { width:700px; }
+    .dash-card[data-size="full"] { width:calc(100% - 16px); }
+    .dash-card.dragging { opacity:.72; outline:2px dashed var(--yellow); z-index:1000; }
+    .dash-head { display:flex; gap:10px; align-items:center; justify-content:space-between; margin-bottom:10px; }
+    .dash-head h3 { margin:0; font-size:1.05rem; }
+    .dash-tools { display:flex; gap:5px; align-items:center; }
+    .drag-handle { cursor:grab; touch-action:none; user-select:none; padding:6px 8px; border-radius:8px; background:rgba(255,255,255,.06); color:var(--muted); font-weight:900; }
+    .drag-handle:active { cursor:grabbing; }
+    .layout-locked .drag-handle, .layout-locked .size-btn { display:none; }
+    .layout-locked .dash-card { resize:none; }
+    .layout-locked .dash-card::after { display:none; }
+    .size-btn { padding:6px 9px; min-width:34px; border-radius:8px; }
+    .panel-action { padding:6px 9px; min-width:34px; border-radius:8px; background:rgba(255,255,255,.06); color:var(--muted); border:1px solid rgba(255,255,255,.08); }
+    .panel-action:hover { color:var(--text); background:rgba(255,255,255,.11); }
+    .dash-card.panel-collapsed { height:52px !important; min-height:52px; resize:none; overflow:hidden; }
+    .dash-card.panel-collapsed > :not(.dash-head) { display:none !important; }
+    .dash-card.panel-collapsed::after { display:none; }
+    .dash-card.panel-hidden { display:none !important; }
+    .panel-manager { display:flex; gap:7px; align-items:center; flex-wrap:wrap; }
+    .panel-manager select { min-width:190px; width:auto; margin:0; padding:8px 10px; }
+    .layout-locked .panel-action { display:inline-flex; }
+    .dash-card .points-panel { margin:8px 0; }
+    .dash-card table { margin-top:6px; }
+    .dash-card .status { margin:8px 0; }
+    .dash-note { color:var(--muted); font-size:13px; }
+    .workspace-bar { display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin:14px 0 10px; padding:10px; border:1px solid rgba(255,255,255,.09); border-radius:12px; background:rgba(255,255,255,.025); }
+    .workspace-tabs { display:flex; gap:7px; flex-wrap:wrap; flex:1; min-width:0; }
+    .workspace-tab { padding:8px 13px; border-radius:9px; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.08); color:var(--muted); font-weight:800; }
+    .workspace-tab.active { background:#ff7900; color:#111; border-color:#ff9a3d; }
+    .workspace-tools { display:flex; gap:7px; flex-wrap:wrap; }
+    .dash-card.workspace-off { display:none !important; }
+    .panel-action.copy-panel-btn, .panel-action.move-panel-btn { font-size:14px; }
+    .mirror-panel-badge { font-size:11px; color:var(--muted); font-weight:600; margin-left:6px; }
+    @media (max-width: 700px) { .dashboard { min-height:1400px; } .dash-card, .dash-card[data-size] { width:calc(100% - 16px); } .layout-actions { width:100%; } }
+
+
+    .answer-timer-player { margin:14px auto; max-width:420px; padding:14px 18px; border-radius:16px; text-align:center; background:rgba(255,255,255,.05); border:1px solid rgba(255,255,255,.1); }
+    .answer-timer-player .timer-number, .answer-timer-big { font-size:clamp(34px,5vw,56px); line-height:1; font-weight:950; font-variant-numeric:tabular-nums; }
+    .answer-timer-big.warning, .answer-timer-player.warning { color:#ffb020; }
+    .answer-timer-big.danger, .answer-timer-player.danger { color:#ff493d; }
+    .soundboard-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(120px,1fr)); gap:9px; margin-top:10px; }
+    .soundboard-grid button { padding:12px 10px; }
+    .tribune { display:flex; flex-direction:column; gap:14px; margin-top:12px; }
+    .tribune-team { border:2px solid var(--team-color,#777); border-radius:18px 18px 10px 10px; overflow:hidden; background:linear-gradient(180deg, color-mix(in srgb, var(--team-color,#777) 14%, transparent), rgba(255,255,255,.025)); }
+    .tribune-team-head { display:flex; justify-content:space-between; gap:10px; align-items:center; padding:10px 14px; border-bottom:1px solid color-mix(in srgb, var(--team-color,#777) 45%, transparent); }
+    .tribune-team-head strong { color:var(--team-color); font-size:1.08rem; }
+    .tribune-rows { padding:12px; background:repeating-linear-gradient(0deg, rgba(255,255,255,.018) 0 38px, rgba(255,255,255,.045) 39px 42px); }
+    .tribune-players { display:flex; gap:14px; flex-wrap:wrap; align-items:flex-end; }
+    .tribune-player { width:92px; text-align:center; position:relative; }
+    .tribune-avatar { width:68px; height:68px; margin:0 auto 6px; border-radius:50%; object-fit:cover; display:grid; place-items:center; font-size:24px; font-weight:950; color:white; background:color-mix(in srgb, var(--team-color,#777) 70%, #111); border:4px solid var(--team-color,#777); box-shadow:0 7px 18px rgba(0,0,0,.35); }
+    .tribune-player-name { color:var(--team-color,#fff); font-weight:850; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .tribune-score { font-size:12px; color:var(--muted); }
+    .avatar-controls { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+    .avatar-upload { width:150px; max-width:100%; padding:7px; font-size:12px; }
+    .tribune-player-view { margin-top:18px; padding:14px; border:1px solid rgba(255,255,255,.09); border-radius:16px; background:rgba(255,255,255,.025); }
+
+    @media (max-width: 760px) {
+      .desktop-table { display: block; overflow-x: auto; }
+      th, td { white-space: nowrap; }
+    }
+  
+    [data-card="buzzertexts"] input { width:100%; }
+    [data-card="buzzertexts"] #buzzerTextsSaved { line-height:1.45; overflow-wrap:anywhere; }
+
+  
+    /* Spieleransicht: Buzzer zuerst, Chat darunter */
+    .player-main-grid { display:block !important; margin:0 !important; }
+    .player-buzzer-zone { display:contents !important; }
+    #playerView #playerChatShell {
+      display:block;
+      width:100%;
+      max-width:none;
+      margin:16px 0 0;
+    }
+    #playerView #playerChatNotice { margin:14px 0 0; }
+
+  
+    /* Gesammelte UI-Fixes */
+    #joinView .controls, #hostLoginView .controls {
+      display:flex !important; flex-direction:column !important;
+      align-items:stretch !important; gap:10px !important; width:100% !important;
+    }
+    #joinView .controls input, #joinView .controls select, #joinView .controls button,
+    #hostLoginView .controls input, #hostLoginView .controls select, #hostLoginView .controls button {
+      width:100% !important; box-sizing:border-box !important; margin:0 !important;
+    }
+    
+    #playerView .buzzer {
+      width:min(78vw,430px) !important; min-height:190px !important;
+      border-radius:50% / 34% !important; padding:30px 38px !important;
+      display:flex !important; align-items:center !important; justify-content:center !important;
+      text-align:center !important;
+      box-shadow:inset 0 10px 18px rgba(255,255,255,.20),
+                 inset 0 -18px 25px rgba(0,0,0,.32),
+                 0 12px 0 rgba(0,0,0,.32),0 18px 30px rgba(0,0,0,.35) !important;
+    }
+    #playerView .buzzer-state-label {
+      font-size:clamp(24px,5vw,44px) !important; line-height:1.08 !important;
+      letter-spacing:.04em !important; max-width:100%; overflow-wrap:anywhere;
+    }
+    #playerView #playerChatShell { width:100% !important; margin:16px 0 0 !important; }
+
+
+    /* FINALER BUZZER-SHAPE-FIX: echter runder Gameshow-Buzzer */
+    #playerView button#buzzer.buzzer {
+      width:min(62vw, 360px) !important;
+      height:min(62vw, 360px) !important;
+      min-width:260px !important;
+      min-height:260px !important;
+      max-width:360px !important;
+      max-height:360px !important;
+      aspect-ratio:1 / 1 !important;
+      border-radius:50% !important;
+      padding:34px !important;
+      flex:0 0 auto !important;
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      overflow:hidden !important;
+      box-sizing:border-box !important;
+      box-shadow:
+        inset 0 18px 28px rgba(255,255,255,.22),
+        inset 0 -28px 34px rgba(0,0,0,.34),
+        0 14px 0 rgba(0,0,0,.34),
+        0 22px 34px rgba(0,0,0,.38) !important;
+    }
+    #playerView button#buzzer.buzzer:not(:disabled):active {
+      transform:translateY(7px) !important;
+      box-shadow:
+        inset 0 12px 28px rgba(0,0,0,.22),
+        0 7px 0 rgba(0,0,0,.34),
+        0 13px 22px rgba(0,0,0,.30) !important;
+    }
+    #playerView button#buzzer.buzzer .buzzer-state-label {
+      width:100% !important;
+      text-align:center !important;
+      font-size:clamp(22px,4.5vw,40px) !important;
+      line-height:1.05 !important;
+      overflow-wrap:anywhere !important;
+    }
+    @media(max-width:520px) {
+      #playerView button#buzzer.buzzer {
+        width:min(76vw,320px) !important;
+        height:min(76vw,320px) !important;
+        min-width:230px !important;
+        min-height:230px !important;
+      }
+    }
+
+
+    /* FINAL: Login-Aktionen wieder nebeneinander */
+    #joinView .controls,
+    #hostLoginView .controls {
+      display:flex !important;
+      flex-direction:row !important;
+      flex-wrap:nowrap !important;
+      align-items:center !important;
+      justify-content:flex-start !important;
+      gap:10px !important;
+      width:100% !important;
+    }
+
+    #joinView .controls input,
+    #joinView .controls select,
+    #hostLoginView .controls input,
+    #hostLoginView .controls select {
+      flex:1 1 auto !important;
+      width:auto !important;
+      min-width:0 !important;
+      margin:0 !important;
+      box-sizing:border-box !important;
+    }
+
+    #joinView .controls button,
+    #hostLoginView .controls button {
+      flex:0 0 auto !important;
+      width:auto !important;
+      min-width:max-content !important;
+      margin:0 !important;
+      box-sizing:border-box !important;
+    }
+
+    /* FINAL: echter kreisrunder Gameshow-Buzzer */
+    #playerView button#buzzer.buzzer {
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      box-sizing:border-box !important;
+
+      width:340px !important;
+      height:340px !important;
+      min-width:340px !important;
+      min-height:340px !important;
+      max-width:340px !important;
+      max-height:340px !important;
+
+      padding:36px !important;
+      border-radius:9999px !important;
+      overflow:hidden !important;
+      flex:none !important;
+
+      box-shadow:
+        inset 0 20px 28px rgba(255,255,255,.20),
+        inset 0 -30px 36px rgba(0,0,0,.34),
+        0 14px 0 rgba(0,0,0,.34),
+        0 22px 34px rgba(0,0,0,.38) !important;
+    }
+
+    #playerView button#buzzer.buzzer .buzzer-state-label {
+      display:block !important;
+      width:100% !important;
+      text-align:center !important;
+      line-height:1.05 !important;
+      overflow-wrap:anywhere !important;
+    }
+
+    @media (max-width:520px) {
+      #playerView button#buzzer.buzzer {
+        width:270px !important;
+        height:270px !important;
+        min-width:270px !important;
+        min-height:270px !important;
+        max-width:270px !important;
+        max-height:270px !important;
+      }
+
+      #joinView .controls,
+      #hostLoginView .controls {
+        gap:7px !important;
+      }
+    }
+
+
+    /* FINAL: tatsächliche Login-Bereiche */
+    #playerSetup .controls,
+    #hostLogin .controls {
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
+      gap:12px !important;
+      width:100% !important;
+      align-items:stretch !important;
+    }
+
+    #playerSetup .controls > button,
+    #hostLogin .controls > button {
+      display:block !important;
+      width:100% !important;
+      min-width:0 !important;
+      max-width:none !important;
+      margin:0 !important;
+      box-sizing:border-box !important;
+    }
+
+    /* FINAL: kreisrunder, anklickbarer Gameshow-Buzzer */
+    #playerView button#buzzer.buzzer {
+      position:relative !important;
+      z-index:2 !important;
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      width:320px !important;
+      height:320px !important;
+      min-width:320px !important;
+      min-height:320px !important;
+      max-width:320px !important;
+      max-height:320px !important;
+      aspect-ratio:1/1 !important;
+      border-radius:50% !important;
+      padding:34px !important;
+      margin:20px auto 0 !important;
+      box-sizing:border-box !important;
+      flex:none !important;
+      overflow:hidden !important;
+      pointer-events:auto !important;
+    }
+
+    #playerView button#buzzer.buzzer .buzzer-state-label {
+      display:block !important;
+      width:100% !important;
+      text-align:center !important;
+      line-height:1.08 !important;
+      pointer-events:none !important;
+      overflow-wrap:anywhere !important;
+    }
+
+    #playerView #playerChatShell {
+      position:relative !important;
+      z-index:1 !important;
+      width:100% !important;
+      margin:18px 0 0 !important;
+    }
+
+    @media(max-width:500px) {
+      #playerView button#buzzer.buzzer {
+        width:260px !important;
+        height:260px !important;
+        min-width:260px !important;
+        min-height:260px !important;
+        max-width:260px !important;
+        max-height:260px !important;
+      }
+      #playerSetup .controls,
+      #hostLogin .controls {
+        gap:8px !important;
+      }
+    }
+
+
+    /* Saubere Spieleransicht */
+    #playerView #buzzer {
+      display:flex !important;
+      align-items:center !important;
+      justify-content:center !important;
+      width:320px !important;
+      height:320px !important;
+      min-width:320px !important;
+      min-height:320px !important;
+      max-width:320px !important;
+      max-height:320px !important;
+      aspect-ratio:1 / 1 !important;
+      border-radius:50% !important;
+      padding:34px !important;
+      margin:20px auto 0 !important;
+      box-sizing:border-box !important;
+      flex:none !important;
+      overflow:hidden !important;
+      pointer-events:auto !important;
+    }
+    #playerView #buzzer .buzzer-state-label {
+      width:100% !important;
+      text-align:center !important;
+      font-size:clamp(24px,4vw,40px) !important;
+      line-height:1.08 !important;
+      overflow-wrap:anywhere !important;
+      pointer-events:none !important;
+    }
+    .player-score-summary {
+      margin:18px auto 8px;
+      width:fit-content;
+      max-width:100%;
+      padding:10px 16px;
+      border:1px solid var(--border);
+      border-radius:12px;
+      background:rgba(255,255,255,.045);
+      font-size:1.05rem;
+      font-weight:850;
+      text-align:center;
+      overflow-wrap:anywhere;
+    }
+    .player-buzz-result { margin:8px 0 0 !important; }
+    #playerView #playerChatNotice { margin:14px 0 0 !important; }
+    #playerView #playerChatShell {
+      display:block !important;
+      position:relative !important;
+      width:100% !important;
+      max-width:none !important;
+      margin:16px 0 0 !important;
+    }
+    #playerView #playerTribune,
+    #playerView #playerBuzzDetails { margin-top:18px; }
+
+    @media(max-width:500px) {
+      #playerView #buzzer {
+        width:260px !important;
+        height:260px !important;
+        min-width:260px !important;
+        min-height:260px !important;
+        max-width:260px !important;
+        max-height:260px !important;
+      }
+    }
+
+    /* Login-Buttons ordentlich nebeneinander */
+    #playerSetup .controls,
+    #hostLogin .controls {
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) minmax(0,1fr) !important;
+      gap:12px !important;
+      width:100% !important;
+    }
+    #playerSetup .controls > button,
+    #hostLogin .controls > button {
+      width:100% !important;
+      min-width:0 !important;
+      margin:0 !important;
+      box-sizing:border-box !important;
+    }
+
+
+    /* Separater Antwort-Bereich */
+    .answer-entry-panel {
+      margin-top:10px;
+      padding:14px;
+      border:1px solid rgba(241,196,15,.35);
+      border-radius:14px;
+      background:rgba(241,196,15,.07);
+    }
+    .answer-entry-title {
+      font-weight:900;
+      margin-bottom:8px;
+    }
+    .answer-entry-status {
+      margin:8px 0 12px;
+      padding:12px;
+      border-radius:11px;
+      background:rgba(255,255,255,.05);
+      font-weight:750;
+    }
+    .answer-entry-status.logged {
+      border:1px solid rgba(46,204,113,.45);
+      background:rgba(46,204,113,.10);
+    }
+
+    .bug-report-button { width:auto; padding:7px 11px; border-radius:9px; background:#3a253d; color:#ffd3ff; border:1px solid rgba(255,130,255,.25); }
+    .bug-report-dialog { border:1px solid rgba(255,255,255,.14); border-radius:16px; background:#111722; color:var(--text); width:min(560px,calc(100vw - 32px)); padding:0; }
+    .bug-report-dialog::backdrop { background:rgba(0,0,0,.72); }
+    .bug-report-dialog-inner { padding:18px; }
+    .bug-report-dialog textarea { width:100%; min-height:150px; resize:vertical; box-sizing:border-box; }
+    .bug-report-dialog select { width:100%; }
+    .bug-report-list { display:flex; flex-direction:column; gap:9px; max-height:480px; overflow:auto; padding-right:3px; }
+    .bug-report-row { border:1px solid rgba(255,255,255,.10); border-left:4px solid #ff6500; border-radius:11px; padding:10px; background:rgba(255,255,255,.025); }
+    .bug-report-row.resolved { opacity:.58; border-left-color:#6b7280; }
+    .bug-report-meta { display:flex; flex-wrap:wrap; gap:7px 12px; font-size:11px; color:var(--muted); margin:4px 0 7px; }
+    .bug-report-text { white-space:pre-wrap; overflow-wrap:anywhere; }
+    .bug-report-actions { display:flex; gap:7px; flex-wrap:wrap; margin-top:9px; }
+    .bug-report-actions button { width:auto; padding:6px 9px; font-size:12px; }
+    .answer-team-label { margin-bottom:9px; padding:8px 10px; border-radius:10px; background:rgba(255,101,0,.09); border:1px solid rgba(255,101,0,.22); }
+    .host-answers-panel {
+      margin-top:16px;
+      padding-top:16px;
+      border-top:1px solid var(--border);
+    }
+    .host-answers-head {
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      flex-wrap:wrap;
+      margin-bottom:10px;
+    }
+    .host-answers-head .controls {
+      margin:0;
+    }
+    .host-answers-list {
+      display:grid;
+      gap:8px;
+    }
+    .host-answer-row {
+      display:grid;
+      grid-template-columns:minmax(150px, 1fr) minmax(180px, 2fr);
+      gap:12px;
+      align-items:start;
+      padding:11px 12px;
+      border:1px solid var(--border);
+      border-left:4px solid #777;
+      border-radius:11px;
+      background:rgba(255,255,255,.035);
+    }
+    .host-answer-row .answer-value {
+      font-weight:800;
+      overflow-wrap:anywhere;
+    }
+    .host-answer-pending {
+      opacity:.62;
+    }
+    @media(max-width:650px) {
+      .host-answer-row {
+        grid-template-columns:1fr;
+      }
+    }
+
+
+    .chat-image { display:block; max-width:min(100%,360px); max-height:260px; margin-top:7px; border-radius:9px; cursor:zoom-in; object-fit:contain; background:#070a10; }
+    .chat-image-button { width:auto; padding:8px 10px; }
+    .hotkey-status { font-weight:900; padding:7px 10px; border-radius:9px; display:inline-block; }
+    .hotkey-status.on { background:#173d28; color:#7ef0a8; } .hotkey-status.off { background:#492126; color:#ff9aa2; }
+    .hotkey-row { display:grid; grid-template-columns:minmax(150px,1fr) 150px auto; gap:8px; align-items:center; margin:7px 0; }
+    .hotkey-key { text-align:center; font-weight:800; }
+    @media(max-width:650px){.hotkey-row{grid-template-columns:1fr}.hotkey-row button{width:100%}}
+</style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="brand-title">#Musiklex</div>
+    <p>Live-Reihenfolge, Reaktionszeit und Punkte für Quiz, Gameshows und Musikspiele.</p>
+
+    <section id="chooser" class="card">
+      <h2>Wie möchtest du beitreten?</h2>
+      <div class="role-buttons">
+        <button id="playerRole">Ich bin Spieler</button>
+        <button id="hostRole">Ich bin Host</button>
+      </div>
+    </section>
+
+    <section id="playerSetup" class="card hidden">
+      <h2>Spieler</h2>
+      <input id="nameInput" maxlength="30" placeholder="Dein Name" autocomplete="off" />
+      <div class="controls" style="margin-top:12px">
+        <button id="joinButton">Beitreten</button>
+        <button class="back">Zurück</button>
+      </div>
+    </section>
+
+    <section id="hostLogin" class="card hidden">
+      <h2>Host-Zugang</h2>
+      <p class="small">Bitte Host-Passwort eingeben.</p>
+      <input id="hostPassword" type="password" maxlength="80" placeholder="Host-Passwort" autocomplete="current-password" />
+      <div class="controls" style="margin-top:12px">
+        <button id="hostLoginButton">Host öffnen</button>
+        <button class="back">Zurück</button>
+      </div>
+      <div id="hostLoginError" class="host-login-error"></div>
+    </section>
+
+    <section id="playerView" class="card hidden">
+      <h2 id="helloPlayer">Spieler</h2>
+      <div id="playerGameInfo" class="game-info-player hidden"><h3 id="playerGameName"></h3><p id="playerGameRules" class="game-rules-text"></p></div>
+      <div id="playerAnswerTimer" class="answer-timer-player hidden"><div class="small">Antwortzeit <span id="playerAnsweringName"></span></div><div id="playerAnswerTimerValue" class="timer-number">0.0 s</div></div>
+
+      <div id="playerStatus" class="status closed">Warte auf den Host …</div>
+      <div id="playerMessages"></div>
+
+      <button id="buzzer" class="buzzer" disabled type="button"><span id="buzzerStateLabel" class="buzzer-state-label">INAKTIV</span></button>
+
+      <div id="playerScoreSummary" class="player-score-summary">Punkte: 0</div>
+      <p id="playerResult" class="status player-buzz-result"></p>
+
+      <div id="playerChatNotice" class="player-chat-notice hidden" role="status" aria-live="polite" tabindex="0">
+        <span id="playerChatNoticeText">Neue Nachricht</span>
+        <span id="playerChatNoticeCount" class="notice-count">1</span>
+      </div>
+      <div id="playerChatShell" class="chat-shell">
+          <div class="chat-head">
+            <div class="chat-head-title"><strong>Chat</strong><span id="playerChatHeadUnread" class="chat-head-unread hidden">0</span></div>
+            <div class="controls" style="margin:0"><button id="openBugReport" class="bug-report-button" type="button">🐞 Bug melden</button><button id="togglePlayerChat" class="chat-collapse" type="button">Minimieren</button></div>
+          </div>
+          <div class="chat-body">
+            <div class="chat-tabs">
+              <button id="playerChatHostTab" class="chat-tab active" type="button">Privat mit Host <span id="playerHostUnread" class="chat-badge hidden">0</span></button>
+              <button id="playerChatTeamTab" class="chat-tab" type="button">Teamchat <span id="playerTeamUnread" class="chat-badge hidden">0</span></button>
+              <button id="playerChatAnswerTab" class="chat-tab" type="button">Team-Antwort</button>
+            </div>
+            <div id="playerChatDisabled" class="chat-disabled hidden"></div>
+            <div id="playerChatLog" class="chat-log"></div>
+            <div id="playerChatCompose" class="chat-compose"><input id="playerChatInput" maxlength="500" placeholder="Nachricht schreiben …"><div style="display:flex;gap:6px"><button id="playerChatImage" class="chat-image-button" type="button" title="Bild senden">🖼️</button><button id="playerChatSend" type="button">Senden</button></div><input id="playerChatImageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></div>
+            <div id="playerAnswerPanel" class="answer-entry-panel hidden">
+              <div class="answer-entry-title">Geheime Antwort einloggen</div>
+              <div id="playerAnswerTeamLabel" class="answer-team-label"></div>
+              <div id="playerAnswerStatus" class="answer-entry-status">Noch keine Antwort eingeloggt.</div>
+              <div id="playerAnswerCompose" class="chat-compose">
+                <input id="playerAnswerInput" maxlength="500" autocomplete="off" placeholder="Antwort eingeben …">
+                <button id="playerAnswerSubmit" type="button">Antwort einloggen</button>
+              </div>
+              <div class="small">Nach dem Einloggen kann die Antwort nicht mehr geändert werden, bis der Host die Antworten zurücksetzt.</div>
+            </div>
+          </div>
+      
+      </div>
+
+
+      <dialog id="bugReportDialog" class="bug-report-dialog">
+        <div class="bug-report-dialog-inner">
+          <h3 style="margin-top:0">🐞 Bug melden</h3>
+          <p class="small">Beschreibe kurz, was passiert ist. Dein Spielername und Browser werden automatisch mitgeschickt.</p>
+          <label>Bereich</label>
+          <select id="bugReportArea">
+            <option value="Buzzer">Buzzer</option>
+            <option value="Chat">Chat</option>
+            <option value="Team-Antwort">Team-Antwort</option>
+            <option value="Punkte / Teams">Punkte / Teams</option>
+            <option value="Anzeige / Layout">Anzeige / Layout</option>
+            <option value="Sonstiges">Sonstiges</option>
+          </select>
+          <label style="display:block;margin-top:10px">Was ist passiert?</label>
+          <textarea id="bugReportMessage" maxlength="1500" placeholder="z. B. Im Teamchat kann ich nach oben scrollen, aber die Ansicht springt sofort wieder nach unten …"></textarea>
+          <div class="controls" style="margin-top:10px;justify-content:flex-end">
+            <button id="cancelBugReport" class="small-button" type="button">Abbrechen</button>
+            <button id="submitBugReport" class="host-start" type="button">Bug senden</button>
+          </div>
+          <div id="bugReportStatus" class="small" style="margin-top:8px"></div>
+        </div>
+      </dialog>
+
+      <div id="playerTribune" class="tribune-player-view hidden">
+        <h3>🏟️ Tribüne</h3>
+        <div id="playerTribuneContent" class="tribune"></div>
+      </div>
+
+      <div id="playerBuzzDetails" class="player-buzz-details hidden">
+        <h3>Buzz-Reihenfolge</h3>
+        <div class="desktop-table">
+          <table>
+            <thead>
+              <tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr>
+            </thead>
+            <tbody id="playerBuzzTable"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <button class="back">Zurück</button>
+    </section>
+
+    <section id="hostView" class="card hidden">
+      <div class="host-topbar">
+        <div><h2>Host-Zentrale</h2><div class="dash-note">Ordne die Bereiche so an, wie du sie für deine Show brauchst.</div></div>
+        <div class="layout-actions">
+          <button id="toggleLayoutLock" class="small-button">🔓 Layout sperren</button>
+          <button id="resetLayout" class="small-button">Layout zurücksetzen</button>
+          <div class="panel-manager"><select id="hiddenPanelSelect" aria-label="Ausgeblendete Panels"><option value="">Ausgeblendete Panels …</option></select><button id="restorePanel" class="small-button">Einblenden</button></div>
+        </div>
+      </div>
+
+      <div class="workspace-bar">
+        <div id="workspaceTabs" class="workspace-tabs"></div>
+        <div class="workspace-tools">
+          <button id="addWorkspace" class="small-button">＋ Tab</button>
+          <button id="renameWorkspace" class="small-button">Tab umbenennen</button>
+          <button id="deleteWorkspace" class="small-button">Tab löschen</button>
+          <button id="moveWorkspaceLeft" class="small-button" title="Tab nach links">←</button>
+          <button id="moveWorkspaceRight" class="small-button" title="Tab nach rechts">→</button>
+        </div>
+      </div>
+
+      <div id="dashboard" class="dashboard">
+        <section class="dash-card" data-card="round" data-size="medium">
+          <div class="dash-head"><h3>🎮 Rundensteuerung</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="controls"><button id="startRound" class="host-start">Runde starten</button><button id="closeRound" class="host-close">Buzzer sperren</button><button id="resetRound" class="host-reset">Zurücksetzen</button></div>
+          <div id="hostStatus" class="status closed">Runde ist geschlossen</div>
+        </section>
+
+        <section class="dash-card" data-card="settings" data-size="medium">
+          <div class="dash-head"><h3>⚙️ Einstellungen</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="points-panel"><label for="pointValue">Punkte pro Klick:</label><input id="pointValue" class="inline-input" type="number" min="0" max="9999" step="1" value="1"><button id="setPointValue" class="small-button">Übernehmen</button><span class="small" id="pointValueSaved">Gespeichert: 1</span></div>
+          <div class="points-panel"><label for="earlyPenalty">Frühstart-Sperre:</label><input id="earlyPenalty" class="inline-input" type="number" min="0" max="60" step="0.5" value="0"><span>Sek.</span><button id="setEarlyPenalty" class="small-button">Übernehmen</button><span class="small" id="earlyPenaltySaved">0 Sekunden</span></div>
+        </section>
+
+
+
+
+        <section class="dash-card" data-card="buzzertexts" data-size="medium">
+          <div class="dash-head"><h3>✏️ Buzzer-Texte</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label for="buzzerTextActive">Text bei aktivem Buzzer</label>
+          <input id="buzzerTextActive" maxlength="40" placeholder="AKTIV">
+          <label for="buzzerTextInactive" style="display:block;margin-top:9px">Text bei inaktivem Buzzer</label>
+          <input id="buzzerTextInactive" maxlength="40" placeholder="INAKTIV">
+          <label for="buzzerTextLocked" style="display:block;margin-top:9px">Text bei gesperrtem Buzzer</label>
+          <input id="buzzerTextLocked" maxlength="40" placeholder="LOCKED">
+          <div class="controls" style="margin-top:10px">
+            <button id="saveBuzzerTexts" class="host-start" type="button">Texte speichern</button>
+            <button id="resetBuzzerTexts" class="small-button" type="button">Standard</button>
+          </div>
+          <div id="buzzerTextsSaved" class="small" style="margin-top:8px">Aktiv: AKTIV · Inaktiv: INAKTIV · Gesperrt: LOCKED</div>
+        </section>
+
+        <section class="dash-card" data-card="yearafteryear" data-size="large">
+          <div class="dash-head"><h3>📅 Year After Year</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label class="message-target"><input id="yayEnabled" type="checkbox"><span class="target-stack"><strong>Year After Year aktiv</strong><span class="small">Ein gültiger Buzz friert den Song-Timer automatisch ein.</span></span></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+            <label><strong>Korrektes Jahr</strong><input id="yayCorrectYear" type="number" min="1900" max="2100" placeholder="z. B. 2019" style="margin-top:5px"></label>
+            <label><strong>Geratenes Jahr</strong><input id="yayGuessYear" type="number" min="1900" max="2100" placeholder="z. B. 2017" style="margin-top:5px"></label>
+          </div>
+          <div id="yayTimer" class="answer-timer-big" style="margin-top:12px">0,00 s</div>
+          <div id="yayTolerance" style="font-size:1.5rem;font-weight:900;text-align:center;margin:5px 0">EXAKT</div>
+          <div id="yayRange" class="small" style="text-align:center">Korrektes Jahr eintragen.</div>
+          <div id="yayBuzzed" class="status closed" style="margin-top:10px">Bereit für einen neuen Song.</div>
+          <div class="controls" style="margin-top:10px">
+            <button id="yayStart" class="host-start" type="button">▶️ Song starten</button>
+            <button id="yayPause" class="small-button" type="button">⏸️ Pause</button>
+            <button id="yayReset" class="host-reset" type="button">↩️ Neuer Song</button>
+          </div>
+          <div class="controls" style="margin-top:8px">
+            <button id="yayWrong" class="host-close" type="button" disabled>❌ Falsch – weiter</button>
+            <button id="yayCorrect" class="host-start" type="button" disabled>✅ Richtig (+5)</button>
+          </div>
+          <div id="yayCheck" class="small" style="margin-top:8px">0–10 s exakt · danach alle 10 s ±1 Jahr mehr.</div>
+        </section>
+
+        <section class="dash-card" data-card="answertimer" data-size="medium">
+          <div class="dash-head"><h3>⏱️ Antworttimer</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label class="message-target"><input id="answerTimerEnabled" type="checkbox"><span class="target-stack"><strong>Antworttimer aktivieren</strong><span class="small">Startet automatisch beim ersten gültigen Buzz.</span></span></label>
+          <div class="points-panel"><label for="answerTimerSeconds">Antwortzeit:</label><input id="answerTimerSeconds" class="inline-input" type="number" min="1" max="120" step="0.5" value="5"><span>Sek.</span><button id="saveAnswerTimer" class="small-button">Übernehmen</button></div>
+          <div id="answerTimerValue" class="answer-timer-big">Bereit</div>
+          <div id="answerTimerWho" class="small">Noch niemand hat gebuzzert.</div>
+          <div class="controls" style="margin-top:10px"><button id="restartAnswerTimer" class="small-button">⏱️ Zeit neu starten</button><button id="nextAnswerTimer" class="small-button">❌ Falsch → Nächster Spieler</button><button id="resetAnswerTimer" class="small-button">Timer zurücksetzen</button></div>
+        </section>
+
+        <section class="dash-card" data-card="soundboard" data-size="large">
+          <div class="dash-head"><h3>🔊 Soundboard</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label class="message-target"><input id="soundSharePlayers" type="checkbox"><span class="target-stack"><strong>Auch bei Spielern abspielen</strong><span class="small">Ohne Haken hörst nur du den Sound.</span></span></label>
+          <div class="soundboard-grid">
+            <button data-sound="correct">✅ Richtige Antwort</button><button data-sound="wrong">❌ Falsche Antwort</button><button data-sound="nextQuestion">❓ Nächste Fragerunde</button><button data-sound="nextMainRound">🎵 Nächste Hauptrunde</button><button data-sound="countdown5">5️⃣ Countdown 5 Sek.</button><button data-sound="timeup">⏰ Zeit!</button><button data-sound="buzzer">🔴 Buzzer</button>
+          </div>
+        </section>
+
+        <section class="dash-card" data-card="soundvolumes" data-size="large">
+          <div class="dash-head"><h3>🎚️ Sound-Lautstärken</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small">Stelle jeden Soundboard-Sound einzeln ein. Die Werte werden auf diesem Gerät gespeichert und beim Abspielen auch an die Spieler übertragen.</div>
+          <div id="soundVolumeList" style="margin-top:12px; display:grid; gap:10px">
+            <label><strong>✅ Richtige Antwort</strong> · <span data-sound-volume-label="correct">70%</span><input data-sound-volume="correct" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+            <label><strong>❌ Falsche Antwort</strong> · <span data-sound-volume-label="wrong">70%</span><input data-sound-volume="wrong" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+            <label><strong>❓ Nächste Fragerunde</strong> · <span data-sound-volume-label="nextQuestion">70%</span><input data-sound-volume="nextQuestion" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+            <label><strong>🎵 Nächste Hauptrunde</strong> · <span data-sound-volume-label="nextMainRound">70%</span><input data-sound-volume="nextMainRound" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+            <label><strong>5️⃣ Countdown 5 Sek.</strong> · <span data-sound-volume-label="countdown5">35%</span><input data-sound-volume="countdown5" type="range" min="0" max="100" value="35" step="5" style="width:100%"></label>
+            <label><strong>⏰ Zeit!</strong> · <span data-sound-volume-label="timeup">70%</span><input data-sound-volume="timeup" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+            <label><strong>🔴 Buzzer</strong> · <span data-sound-volume-label="buzzer">70%</span><input data-sound-volume="buzzer" type="range" min="0" max="100" value="70" step="5" style="width:100%"></label>
+          </div>
+          <button id="resetSoundVolumes" class="small-button" type="button" style="margin-top:12px">Standard-Lautstärken</button>
+        </section>
+
+
+        <section class="dash-card" data-card="videokilled" data-size="large">
+          <div class="dash-head"><h3>🎬 Video Killed The Audio Star</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small">Steuere das Video hier im Host. Die Spieler sehen nur das separate Ausgabefenster.</div>
+          <div style="display:grid;gap:9px;margin-top:12px">
+            <label><strong>YouTube-Link / Video-ID</strong><input id="vkUrl" type="text" placeholder="https://www.youtube.com/watch?v=..." style="margin-top:5px"></label>
+            <div style="display:grid;grid-template-columns:120px 1fr 1fr;gap:8px">
+              <label><strong>Startsek.</strong><input id="vkStart" type="number" min="0" step="1" value="0" style="margin-top:5px"></label>
+              <label><strong>Songtitel</strong><input id="vkTitle" type="text" placeholder="Titel" style="margin-top:5px"></label>
+              <label><strong>Interpret</strong><input id="vkArtist" type="text" placeholder="Interpret" style="margin-top:5px"></label>
+            </div>
+            <button id="vkOpenWindow" class="host-start" type="button">🖥️ Ausgabefenster öffnen</button>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+              <button id="vkLoad" class="small-button" type="button">📺 Video stumm laden</button>
+              <button id="vkRestart" class="small-button" type="button">↩️ Neu starten (stumm)</button>
+              <button id="vkPlay" class="small-button" type="button">▶️ Play</button>
+              <button id="vkPause" class="small-button" type="button">⏸️ Pause</button>
+              <button id="vkMute" class="small-button" type="button">🔇 Ton aus</button>
+              <button id="vkUnmute" class="host-start" type="button">🔊 Ton an – ohne Neustart</button>
+              <button id="vkShowAnswer" class="small-button" type="button">✅ Auflösung zeigen</button>
+              <button id="vkHideAnswer" class="small-button" type="button">🙈 Auflösung ausblenden</button>
+            </div>
+            <label><strong>Video-Lautstärke</strong> · <span id="vkVolumeLabel">100%</span><input id="vkVolume" type="range" min="0" max="100" step="5" value="100" style="width:100%;margin-top:5px"></label>
+            <div id="vkStatus" class="small" style="padding:8px 10px;border-radius:8px;background:rgba(255,255,255,.05)">Noch kein Ausgabefenster geöffnet.</div>
+          </div>
+        </section>
+
+        <section class="dash-card" data-card="tribune" data-size="wide">
+          <div class="dash-head"><h3>🏟️ Team-Tribüne</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label class="message-target"><input id="showPlayerTribune" type="checkbox"><span class="target-stack"><strong>Tribüne bei Spielern anzeigen</strong><span class="small">Die sichtbaren Spieler und Teams erscheinen auch in der Spieleransicht.</span></span></label>
+          <div id="hostTribune" class="tribune"></div>
+        </section>
+
+        <section class="dash-card" data-card="teamboard" data-size="large">
+          <div class="dash-head"><h3>🏆 Team-Anzeige</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div id="teamBoard" class="team-board"></div>
+        </section>
+
+
+        <section class="dash-card" data-card="teampoints" data-size="large">
+          <div class="dash-head"><h3>🎯 Teampunkte vergeben</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small">Für Spiele, bei denen das Team gemeinsam punktet. Du kannst den sichtbaren Gesamtpunktestand direkt setzen oder mit dem aktuellen Punktewert erhöhen/verringern.</div>
+          <div id="teamPointsControls" style="display:grid;gap:10px;margin-top:12px"></div>
+        </section>
+
+        <section class="dash-card" data-card="hotkeys" data-size="large">
+          <div class="dash-head"><h3>⌨️ Hotkeys</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="controls" style="justify-content:space-between"><label><input id="hotkeysEnabled" type="checkbox" checked> Hotkeys aktiv</label><span id="hotkeyStatus" class="hotkey-status on">🟢 HOTKEYS AKTIV</span></div>
+          <label class="message-target"><input id="hotkeysIgnoreInputs" type="checkbox" checked><span class="target-stack"><strong>In Textfeldern ignorieren</strong><span class="small">Verhindert Auslösen beim Schreiben.</span></span></label>
+          <div id="hotkeyRows" style="margin-top:10px"></div>
+          <div class="small">„Belegen“ drücken und die komplette Kombination halten, z. B. Strg + Shift + F8. Mehrere Modifikatortasten (Strg, Shift, Alt) können gleichzeitig kombiniert werden. Jede Belegung kann einzeln deaktiviert werden.</div>
+        </section>
+        <section class="dash-card" data-card="notes" data-size="large">
+          <div class="dash-head"><h3>📝 Notizen</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small">Private Host-Notizen. Der Inhalt wird automatisch in diesem Browser gespeichert und ist für Spieler nicht sichtbar.</div>
+          <textarea id="hostNotes" placeholder="Notizen für die Show …" style="width:100%;min-height:220px;margin-top:12px;resize:vertical;box-sizing:border-box"></textarea>
+          <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:8px;flex-wrap:wrap">
+            <span id="hostNotesStatus" class="small">Automatisch gespeichert</span>
+            <button id="clearHostNotes" type="button" class="small-button">Notizen leeren</button>
+          </div>
+        </section>
+
+        <section class="dash-card" data-card="teams" data-size="wide">
+          <div class="dash-head"><h3>👥 Teams verwalten</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="points-panel"><input id="newTeamName" class="name-input" maxlength="30" placeholder="Neues Team (optional)"><button id="addTeam" class="small-button">Team hinzufügen</button></div>
+          <div class="desktop-table"><table><thead><tr><th>Team</th><th>Mitglieder</th><th>Buzzer</th><th></th></tr></thead><tbody id="teamTable"></tbody></table></div>
+        </section>
+
+        <section class="dash-card" data-card="players" data-size="wide">
+          <div class="dash-head"><h3>🧑 Spieler <span class="small">(<span id="playerCount">0</span>)</span></h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="desktop-table"><table><thead><tr><th>Spieler / Nickname</th><th>Team</th><th>Punkte</th><th>Punkte ändern</th><th>Punktestand setzen</th><th>Tribüne / Avatar</th><th>Buzzer</th><th>Aktion</th></tr></thead><tbody id="playerTable"></tbody></table></div>
+        </section>
+
+        <section class="dash-card" data-card="messages" data-size="wide">
+          <div class="dash-head"><h3>💬 Chat-Zentrale</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="chat-settings">
+            <label><input id="privateChatEnabled" type="checkbox" checked> Privatchat</label>
+            <label><input id="teamChatEnabled" type="checkbox" checked> Teamchat</label>
+          </div>
+          <div class="host-chat-layout">
+            <div id="hostChatChannels" class="host-chat-channels"></div>
+            <div class="host-chat-main">
+              <div class="chat-channel-title" id="hostChatTitle">Chat auswählen</div>
+              <div id="hostChatLog" class="chat-log host-chat-log"></div>
+              <div class="chat-compose"><input id="hostChatInput" maxlength="500" placeholder="Nachricht schreiben …"><div style="display:flex;gap:6px"><button id="hostChatImage" class="chat-image-button" type="button" title="Bild senden">🖼️</button><button id="hostChatSend" type="button">Senden</button></div><input id="hostChatImageInput" type="file" accept="image/png,image/jpeg,image/gif,image/webp" hidden></div>
+              <div class="controls" style="margin-top:8px"><button id="clearHostChat" class="host-reset" type="button">Verlauf dieses Chats löschen</button><span id="hostChatStatus" class="small">Privat- und Teamchats sind getrennt.</span></div>
+            </div>
+          </div>
+
+          <div class="host-answers-panel">
+            <div class="host-answers-head">
+              <div>
+                <strong>Antworten</strong>
+                <div id="hostAnswersCounter" class="small">0 / 0 eingeloggt</div>
+              </div>
+              <div class="controls">
+                <button id="revealAnswers" class="small-button" type="button">Antworten aufdecken</button>
+                <button id="resetAnswers" class="host-reset" type="button">Antworten zurücksetzen</button>
+              </div>
+            </div>
+            <div id="hostAnswersList" class="host-answers-list">
+              <div class="small">Noch keine Spieler oder Teams.</div>
+            </div>
+          </div>
+        </section>
+
+
+
+        <section class="dash-card" data-card="bugreports" data-size="wide">
+          <div class="dash-head"><h3>🐞 Bug-Reports <span class="small">(<span id="bugReportCount">0</span> offen)</span></h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="small" style="margin-bottom:9px">Spieler-Meldungen werden hier live angezeigt und serverseitig gespeichert.</div>
+          <div id="hostBugReports" class="bug-report-list"><div class="small">Noch keine Bug-Reports.</div></div>
+        </section>
+
+        <section class="dash-card" data-card="playerdisplay" data-size="medium">
+          <div class="dash-head"><h3>👁️ Spieleranzeige</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label class="message-target"><input id="showPlayerBuzzDetails" type="checkbox"><span class="target-stack"><strong>Buzz-Reihenfolge bei Spielern anzeigen</strong><span class="small">Zeigt Zeiten und Abstand zum Schnellsten wie in der Host-Ansicht.</span></span></label>
+          <div class="small" id="playerDisplaySaved">Aktuell: ausgeblendet</div>
+        </section>
+
+        <section class="dash-card" data-card="gameinfo" data-size="large">
+          <div class="dash-head"><h3>🎵 Aktuelles Spiel</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label for="currentGameName">Spielname</label>
+          <input id="currentGameName" maxlength="80" placeholder="z. B. Verdammt, wann kommt er!">
+          <label for="currentGameRules" style="display:block;margin-top:10px">Regeln / Hinweis</label>
+          <textarea id="currentGameRules" maxlength="1500" placeholder="Kurze Regeln oder Hinweise für die Spieler …" style="min-height:120px;resize:vertical"></textarea>
+          <div class="controls" style="margin-top:10px"><button id="saveGameInfo" class="host-start">Bei Spielern anzeigen</button><button id="clearGameInfo" class="small-button">Leeren</button><span id="gameInfoSaved" class="small">Noch nichts gespeichert.</span></div>
+        </section>
+
+        <section class="dash-card" data-card="early" data-size="medium">
+          <div class="dash-head"><h3>⚠️ Zu früh gebuzzert</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="desktop-table"><table><thead><tr><th>Spieler</th><th>Status</th></tr></thead><tbody id="earlyBuzzTable"></tbody></table></div>
+        </section>
+
+        <section class="dash-card" data-card="buzzes" data-size="large">
+          <div class="dash-head"><h3>🔴 Buzz-Reihenfolge</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <div class="desktop-table"><table><thead><tr><th>Platz</th><th>Spieler</th><th>Zeit</th><th>Abstand zu #1</th></tr></thead><tbody id="buzzTable"></tbody></table></div>
+          <p class="small">Die Zeit wird serverseitig gemessen und in Sekunden angezeigt.</p>
+        </section>
+      </div>
+      <button class="back">Zurück</button>
+    </section>
+  </main>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    let role = null;
+    let playerName = '';
+    let playerSocketId = '';
+    let buzzPending = false;
+    let audioContext = null;
+    let state = { roundOpen: false, roundStart: null, globalBuzzerLocked: false, buzzes: [], earlyBuzzes: [], pointValue: 1, earlyBuzzPenaltySeconds: 0, showPlayerBuzzDetails: false, currentGameName: '', currentGameRules: '', answerTimerEnabled: false, answerTimerSeconds: 5, answerTimerStartedAt: null, answerTimerRemainingMs: 0, answerTimerBuzzSocketId: '', showPlayerTribune: false, buzzerTexts: { active:'AKTIV', inactive:'INAKTIV', locked:'LOCKED' }, teams: [], players: [] };
+    const TEAM_BACKUP_KEY = 'buzzer-team-state-v2';
+    const BUZZER_TEXT_BACKUP_KEY = 'buzzer-texts-v1';
+    function readBuzzerTextBackup(){
+      try { const raw=localStorage.getItem(BUZZER_TEXT_BACKUP_KEY); return raw ? JSON.parse(raw) : null; } catch(_) { return null; }
+    }
+    function saveBuzzerTextBackup(texts){
+      try { localStorage.setItem(BUZZER_TEXT_BACKUP_KEY, JSON.stringify(texts)); } catch(_) {}
+    }
+
+    let teamBackupRestorePending = false;
+    function readTeamBackup(){ try{ const raw=localStorage.getItem(TEAM_BACKUP_KEY); return raw ? JSON.parse(raw) : null; }catch(_){ return null; } }
+    function makeTeamBackup(){ const byName={}; (state.players||[]).forEach(p=>{ if(p.name) byName[p.name]=p.teamId||''; }); return {version:2,savedAt:Date.now(),teams:(state.teams||[]).map(t=>({id:t.id,name:t.name,color:t.color,score:Number(t.manualScore)||0,buzzerLocked:!!t.buzzerLocked})),playerTeamsByName:byName}; }
+    function saveTeamBackup(){ if(role!=='host' || teamBackupRestorePending) return; try{ const snap=makeTeamBackup(); if(snap.teams.length) localStorage.setItem(TEAM_BACKUP_KEY,JSON.stringify(snap)); }catch(_){} }
+    let playerMessages = [];
+    let playerChatState = { settings:{privateEnabled:true,teamEnabled:true}, private:[], team:[], teamId:'' };
+    let hostChatState = { settings:{privateEnabled:true,teamEnabled:true}, messages:[] };
+    let playerAnswerState = { key:'', label:'', submitted:false, revealed:false };
+    let hostAnswerState = { revealed:false, submittedCount:0, totalCount:0, entries:[] };
+    let hostBugReports = [];
+    let lastPlayerChatChannel = 'host';
+    let playerChatChannel = 'host';
+    let hostChatSelection = { type:'private', id:'' };
+    let hostChatUnread = {};
+    let playerChatUnread = { host:0, team:0 };
+    let stateReceivedAt = performance.now();
+    let timerStateReceivedAt = performance.now();
+    let draggedTeamId = null;
+    let layoutLocked = localStorage.getItem('buzzer-layout-locked') === '1';
+    const sizeCycle = ['small','medium','large','wide','full'];
+    let dashboardRestoring = true;
+    let dashboardInitialized = false;
+    let workspaceTabs = [];
+    let activeWorkspaceId = '';
+    let mirrorCounter = 0;
+    let layoutSaveTimer = null;
+    const LAYOUT_STATE_KEY = 'buzzer-layout-state-v1';
+    const LAYOUT_BACKUP_KEY = 'buzzer-layout-state-backup-v1';
+
+
+    function panelTitle(card) {
+      const h = card.querySelector('.dash-head h3');
+      return h ? h.textContent.trim() : (card.dataset.card || 'Panel');
+    }
+
+    function refreshHiddenPanelSelect() {
+      const sel = $('hiddenPanelSelect'); if (!sel) return;
+      const previous = sel.value;
+      sel.innerHTML = '<option value="">Ausgeblendete Panels …</option>';
+      document.querySelectorAll('#dashboard .dash-card.panel-hidden:not(.workspace-off)').forEach(card => {
+        const o = document.createElement('option');
+        o.value = card.dataset.instance || card.dataset.card; o.textContent = panelTitle(card); sel.appendChild(o);
+      });
+      if ([...sel.options].some(o => o.value === previous)) sel.value = previous;
+      const restore = $('restorePanel'); if (restore) restore.disabled = sel.options.length <= 1;
+    }
+
+    function setPanelCollapsed(card, collapsed, save=true) {
+      if (!card) return;
+      if (collapsed) {
+        if (!card.dataset.expandedHeight) card.dataset.expandedHeight = String(card.offsetHeight);
+        card.classList.add('panel-collapsed');
+      } else {
+        card.classList.remove('panel-collapsed');
+        const h = Number(card.dataset.expandedHeight);
+        if (h > 0) card.style.height = Math.max(150, h) + 'px';
+      }
+      const btn = card.querySelector('.collapse-panel-btn');
+      if (btn) { btn.textContent = collapsed ? '▢' : '−'; btn.title = collapsed ? 'Panel aufklappen' : 'Panel minimieren'; }
+      updateDashboardHeight();
+      if (save) saveDashboardLayout();
+    }
+
+    function setPanelHidden(card, hidden, save=true) {
+      if (!card) return;
+      card.classList.toggle('panel-hidden', hidden);
+      refreshHiddenPanelSelect(); updateDashboardHeight();
+      if (save) saveDashboardLayout();
+    }
+
+    function installPanelControls(card) {
+      const tools = card.querySelector('.dash-tools'); if (!tools) return;
+      if (!tools.querySelector('.move-panel-btn')) {
+        const moveTab = document.createElement('button');
+        moveTab.type='button'; moveTab.className='panel-action move-panel-btn'; moveTab.textContent='⇄'; moveTab.title='Panel in anderen Tab verschieben';
+        moveTab.addEventListener('click', () => choosePanelWorkspace(card, false));
+        tools.insertBefore(moveTab, tools.firstChild);
+      }
+      if (!tools.querySelector('.copy-panel-btn')) {
+        const copyTab = document.createElement('button');
+        copyTab.type='button'; copyTab.className='panel-action copy-panel-btn'; copyTab.textContent='⧉'; copyTab.title='Panel in einen Tab kopieren';
+        copyTab.addEventListener('click', () => choosePanelWorkspace(card, true));
+        tools.insertBefore(copyTab, tools.firstChild);
+      }
+      if (!tools.querySelector('.collapse-panel-btn')) {
+        const collapse = document.createElement('button');
+        collapse.type='button'; collapse.className='panel-action collapse-panel-btn'; collapse.textContent='−'; collapse.title='Panel minimieren';
+        collapse.addEventListener('click', () => setPanelCollapsed(card, !card.classList.contains('panel-collapsed')));
+        tools.insertBefore(collapse, tools.firstChild);
+      }
+      if (card.dataset.origin && !tools.querySelector('.delete-panel-btn')) {
+        const del = document.createElement('button');
+        del.type='button'; del.className='panel-action delete-panel-btn'; del.textContent='🗑'; del.title='Diese Panel-Kopie endgültig löschen';
+        del.addEventListener('click', () => {
+          if (!confirm(`Kopie „${panelTitle(card)}“ endgültig löschen?`)) return;
+          card.remove(); refreshHiddenPanelSelect(); updateDashboardHeight(); saveDashboardLayout();
+        });
+        tools.insertBefore(del, tools.firstChild);
+      }
+      if (!tools.querySelector('.hide-panel-btn')) {
+        const hide = document.createElement('button');
+        hide.type='button'; hide.className='panel-action hide-panel-btn'; hide.textContent='×'; hide.title='Panel ausblenden';
+        hide.addEventListener('click', () => setPanelHidden(card, true));
+        tools.insertBefore(hide, tools.children[1] || null);
+      }
+    }
+
+    function defaultDashboardPositions() {
+      const board = $('dashboard'); if (!board) return;
+      const gap = 14, pad = 8;
+      let x = pad, y = pad, rowH = 0;
+      [...board.querySelectorAll('.dash-card:not(.workspace-off)')].forEach(card => {
+        const w = card.offsetWidth || 360;
+        if (x + w > board.clientWidth - pad && x > pad) { x = pad; y += rowH + gap; rowH = 0; }
+        card.style.left = x + 'px'; card.style.top = y + 'px';
+        x += w + gap; rowH = Math.max(rowH, card.offsetHeight || 180);
+      });
+      updateDashboardHeight();
+    }
+
+    function readLayoutState() {
+      const parse = key => {
+        try { const raw=localStorage.getItem(key); const value=raw?JSON.parse(raw):null; return value && typeof value==='object' ? value : null; } catch(_) { return null; }
+      };
+      return parse(LAYOUT_STATE_KEY) || parse(LAYOUT_BACKUP_KEY);
+    }
+    function writeLayoutState(snapshot) {
+      try {
+        const previous=localStorage.getItem(LAYOUT_STATE_KEY);
+        if(previous) localStorage.setItem(LAYOUT_BACKUP_KEY, previous);
+        localStorage.setItem(LAYOUT_STATE_KEY, JSON.stringify(snapshot));
+      } catch(err) { console.warn('Layout konnte nicht gespeichert werden:', err); }
+    }
+    function loadWorkspaceConfig() {
+      let cfg=readLayoutState()?.workspaces || null;
+      if(!cfg) { try { cfg=JSON.parse(localStorage.getItem('buzzer-workspaces-v1')||'null'); } catch(_) {} }
+      if (!cfg || !Array.isArray(cfg.tabs) || !cfg.tabs.length) cfg={tabs:[{id:'main',name:'SHOW'}],active:'main'};
+      workspaceTabs=cfg.tabs.filter(t=>t&&t.id&&t.name).slice(0,20);
+      if(!workspaceTabs.length) workspaceTabs=[{id:'main',name:'SHOW'}];
+      activeWorkspaceId=workspaceTabs.some(t=>t.id===cfg.active)?cfg.active:workspaceTabs[0].id;
+    }
+    function saveWorkspaceConfig(){
+      try { localStorage.setItem('buzzer-workspaces-v1',JSON.stringify({tabs:workspaceTabs,active:activeWorkspaceId})); } catch(_) {}
+      if(dashboardInitialized && !dashboardRestoring) scheduleDashboardSave();
+    }
+    function scheduleDashboardSave(delay=100){
+      clearTimeout(layoutSaveTimer);
+      layoutSaveTimer=setTimeout(()=>{ layoutSaveTimer=null; saveDashboardLayout(); }, delay);
+    }
+    function renderWorkspaceTabs(){
+      const wrap=$('workspaceTabs'); if(!wrap) return; wrap.innerHTML='';
+      workspaceTabs.forEach(t=>{ const b=document.createElement('button'); b.type='button'; b.className='workspace-tab'+(t.id===activeWorkspaceId?' active':''); b.textContent=t.name; b.onclick=()=>switchWorkspace(t.id); wrap.appendChild(b); });
+    }
+    function switchWorkspace(id){
+      if(!workspaceTabs.some(t=>t.id===id)) return; activeWorkspaceId=id; saveWorkspaceConfig(); renderWorkspaceTabs();
+      document.querySelectorAll('#dashboard .dash-card').forEach(c=>c.classList.toggle('workspace-off',(c.dataset.tabId||workspaceTabs[0].id)!==id));
+      refreshHiddenPanelSelect(); updateDashboardHeight();
+    }
+    function askWorkspace(title){
+      const list=workspaceTabs.map((t,i)=>`${i+1}: ${t.name}`).join('\n');
+      const raw=prompt(`${title}\n\n${list}\n\nNummer eingeben:`); if(raw===null) return null;
+      const idx=parseInt(raw,10)-1; return workspaceTabs[idx]?.id||null;
+    }
+    function choosePanelWorkspace(card, copy){ const id=askWorkspace(copy?'Panel kopieren nach:':'Panel verschieben nach:'); if(!id) return; copy?duplicatePanel(card,id):movePanelToWorkspace(card,id); }
+    function movePanelToWorkspace(card,id){ card.dataset.tabId=id; card.style.left='8px'; card.style.top='8px'; saveDashboardLayout(); switchWorkspace(id); }
+    function duplicatePanel(source,id){
+      const clone=source.cloneNode(true); mirrorCounter++; const instance='copy-'+Date.now()+'-'+mirrorCounter;
+      clone.dataset.instance=instance; clone.dataset.tabId=id; clone.dataset.origin=source.dataset.origin||source.dataset.card; clone.classList.remove('panel-hidden','panel-collapsed','workspace-off','dragging');
+      clone.style.left='8px'; clone.style.top='8px'; clone.style.zIndex=''; clone.querySelectorAll('.panel-action').forEach(x=>x.remove());
+      const h=clone.querySelector('.dash-head h3'); if(h) h.insertAdjacentHTML('beforeend',' <span class="mirror-panel-badge">Kopie</span>');
+      rewriteMirrorIds(clone, source.dataset.origin||source.dataset.card);
+      $('dashboard').appendChild(clone); installPanelControls(clone); installCardInteraction(clone); syncMirrorPanel(clone); saveDashboardLayout(); switchWorkspace(id);
+    }
+    function getMirrorSource(clone){
+      const origin = clone?.dataset?.origin;
+      if(!origin) return null;
+      return [...document.querySelectorAll('#dashboard .dash-card')].find(c => !c.dataset.origin && c.dataset.card === origin) || null;
+    }
+
+    function prepareMirrorIds(clone){
+      if(!clone) return;
+      clone.querySelectorAll('[id]').forEach(el => {
+        const current = el.id;
+        if(current.startsWith('mirror-'+clone.dataset.instance+'-')) return;
+        el.dataset.mirrorTarget = current;
+        el.id = 'mirror-'+clone.dataset.instance+'-'+current;
+      });
+      clone.querySelectorAll('label[for]').forEach(label => {
+        const current = label.getAttribute('for') || '';
+        if(!current || current.startsWith('mirror-'+clone.dataset.instance+'-')) return;
+        label.setAttribute('for','mirror-'+clone.dataset.instance+'-'+current);
+      });
+    }
+
+    function mirrorNodePath(el, card){
+      if(!el || !card || !card.contains(el) || el.closest('.dash-head')) return null;
+      let node = el;
+      const path = [];
+      while(node && node.parentElement && node.parentElement !== card){
+        const parent = node.parentElement;
+        path.unshift([...parent.children].indexOf(node));
+        node = parent;
+      }
+      if(!node || node.parentElement !== card) return null;
+      const tops = [...card.children].filter(c => !c.classList.contains('dash-head'));
+      const topIndex = tops.indexOf(node);
+      return topIndex < 0 ? null : [topIndex, ...path];
+    }
+
+    function mirrorNodeFromPath(card, path){
+      if(!card || !Array.isArray(path) || !path.length) return null;
+      const tops = [...card.children].filter(c => !c.classList.contains('dash-head'));
+      let node = tops[path[0]];
+      for(let i=1; node && i<path.length; i++) node = node.children[path[i]];
+      return node || null;
+    }
+
+    function proxyMirrorEvent(clone, e){
+      if(e.target.closest('.dash-head')) return;
+      const source = getMirrorSource(clone);
+      if(!source) return;
+      const path = mirrorNodePath(e.target, clone);
+      const target = mirrorNodeFromPath(source, path);
+      if(!target) return;
+
+      if(e.type === 'input' || e.type === 'change'){
+        if('value' in e.target && 'value' in target) target.value = e.target.value;
+        if('checked' in e.target && 'checked' in target) target.checked = e.target.checked;
+        target.dispatchEvent(new Event(e.type,{bubbles:true}));
+        return;
+      }
+
+      if(e.type === 'click'){
+        const tag = e.target.tagName;
+        if(tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'LABEL') return;
+        e.preventDefault();
+        target.click();
+        setTimeout(syncAllMirrors,30);
+      }
+    }
+
+    function rewriteMirrorIds(clone, originKey){
+      clone.dataset.origin = originKey;
+      prepareMirrorIds(clone);
+      if(clone._mirrorProxyInstalled) return;
+      clone._mirrorProxyInstalled = true;
+      clone.addEventListener('click', e => proxyMirrorEvent(clone,e), true);
+      clone.addEventListener('change', e => proxyMirrorEvent(clone,e), true);
+      clone.addEventListener('input', e => proxyMirrorEvent(clone,e), true);
+    }
+
+    function syncMirrorPanel(clone){
+      if(!clone || (document.activeElement && clone.contains(document.activeElement))) return;
+      const source = getMirrorSource(clone);
+      if(!source) return;
+
+      const cloneBody = [...clone.children].filter(c => !c.classList.contains('dash-head'));
+      cloneBody.forEach(c => c.remove());
+      [...source.children].filter(c => !c.classList.contains('dash-head')).forEach(c => clone.appendChild(c.cloneNode(true)));
+      prepareMirrorIds(clone);
+    }
+
+    function syncAllMirrors(){
+      document.querySelectorAll('#dashboard .dash-card[data-origin]').forEach(syncMirrorPanel);
+    }
+    function installCardInteraction(card){
+      const handle=card.querySelector('.drag-handle'); const sizeBtn=card.querySelector('.size-btn');
+      if(handle){ handle.removeAttribute('draggable'); handle.onpointerdown=e=>beginCardDrag(e,card); }
+      if(sizeBtn) sizeBtn.style.display='none';
+      if('ResizeObserver' in window&&!card._workspaceResizeObserver){ const ro=new ResizeObserver(()=>{ if(dashboardRestoring||layoutLocked||card.classList.contains('panel-collapsed')||card.classList.contains('panel-hidden')||card.classList.contains('workspace-off')) return; const w=Math.round(card.getBoundingClientRect().width); const h=Math.round(card.getBoundingClientRect().height); const oldW=Number(card.dataset.savedWidth)||0, oldH=Number(card.dataset.savedHeight)||0; if(w<=0||h<=0|| (Math.abs(w-oldW)<2 && Math.abs(h-oldH)<2)) return; card.dataset.savedWidth=String(w); card.dataset.savedHeight=String(h); card.dataset.expandedHeight=String(h); card.dataset.size=''; updateDashboardHeight(); scheduleDashboardSave(180); }); ro.observe(card); card._workspaceResizeObserver=ro; }
+    }
+    function initDashboardLayout() {
+      if(dashboardInitialized) return; const board=$('dashboard'); if(!board) return; dashboardInitialized=true; loadWorkspaceConfig();
+      const unifiedState=readLayoutState(); if(unifiedState && typeof unifiedState.locked==='boolean') layoutLocked=unifiedState.locked;
+      let saved=readLayoutState()?.panels || {};
+      if(!saved || typeof saved!=='object' || Array.isArray(saved)){ saved={}; }
+      if(!Object.keys(saved).length){ try{saved=JSON.parse(localStorage.getItem('buzzer-dashboard-layout-v3')||'{}');}catch(_){saved={};} }
+      const originals=[...board.querySelectorAll('.dash-card')]; originals.forEach(c=>{ c.dataset.instance=c.dataset.instance||c.dataset.card; c.dataset.tabId=saved[c.dataset.instance]?.tabId||workspaceTabs[0].id; installPanelControls(c); installCardInteraction(c); });
+      Object.entries(saved).filter(([k,v])=>v&&v.origin).forEach(([instance,item])=>{ const src=originals.find(c=>c.dataset.card===item.origin); if(!src) return; const clone=src.cloneNode(true); clone.dataset.instance=instance; clone.dataset.origin=item.origin; clone.dataset.tabId=item.tabId||workspaceTabs[0].id; clone.querySelectorAll('.panel-action').forEach(x=>x.remove()); const h=clone.querySelector('.dash-head h3'); if(h) h.insertAdjacentHTML('beforeend',' <span class="mirror-panel-badge">Kopie</span>'); rewriteMirrorIds(clone,item.origin); board.appendChild(clone); installPanelControls(clone); installCardInteraction(clone); });
+      board.querySelectorAll('.dash-card').forEach(card=>{ const item=saved[card.dataset.instance]; if(item){ const sw=Math.max(260,Number(item.width)||0); const sh=Math.max(150,Number(item.height)||0); if(sw>0){ card.style.width=sw+'px'; card.dataset.savedWidth=String(sw); } if(sh>0){ card.style.height=sh+'px'; card.dataset.savedHeight=String(sh); } card.style.left=Math.max(0,Number(item.x)||0)+'px'; card.style.top=Math.max(0,Number(item.y)||0)+'px'; if(Number(item.expandedHeight)>0) card.dataset.expandedHeight=String(Number(item.expandedHeight)); if(item.collapsed)setPanelCollapsed(card,true,false); if(item.hidden)setPanelHidden(card,true,false); } });
+      const hadSavedLayout=Object.keys(saved).length>0;
+      if(!hadSavedLayout) defaultDashboardPositions();
+      renderWorkspaceTabs(); switchWorkspace(activeWorkspaceId); applyLayoutLock(); refreshHiddenPanelSelect(); syncAllMirrors(); requestAnimationFrame(()=>requestAnimationFrame(()=>{ dashboardRestoring=false; board.querySelectorAll('.dash-card').forEach(card=>{ const item=saved[card.dataset.instance]; if(!item) return; if(Number(item.width)>0) card.style.width=Math.max(260,Number(item.width))+'px'; if(Number(item.height)>0 && !card.classList.contains('panel-collapsed')) card.style.height=Math.max(150,Number(item.height))+'px'; clampCard(card); }); updateDashboardHeight(); if(!hadSavedLayout) saveDashboardLayout(); }));
+    }
+
+    function beginCardDrag(e, card) {
+      if (layoutLocked || e.button !== 0) return;
+      e.preventDefault();
+      const board = $('dashboard');
+      const boardRect = board.getBoundingClientRect();
+      const cardRect = card.getBoundingClientRect();
+      const offsetX = e.clientX - cardRect.left, offsetY = e.clientY - cardRect.top;
+      card.classList.add('dragging'); card.style.zIndex = '1000';
+      try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_) {}
+      const move = ev => {
+        const maxX = Math.max(0, board.clientWidth - card.offsetWidth);
+        const x = Math.max(0, Math.min(maxX, ev.clientX - boardRect.left - offsetX));
+        const y = Math.max(0, ev.clientY - boardRect.top - offsetY);
+        card.style.left = Math.round(x) + 'px'; card.style.top = Math.round(y) + 'px';
+        updateDashboardHeight();
+      };
+      const end = () => {
+        card.classList.remove('dragging'); card.style.zIndex = '';
+        window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', end); window.removeEventListener('pointercancel', end);
+        saveDashboardLayout(); updateDashboardHeight();
+      };
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', end, {once:true});
+      window.addEventListener('pointercancel', end, {once:true});
+    }
+
+    function clampCard(card) {
+      const board = $('dashboard'); if (!board) return;
+      const maxX = Math.max(0, board.clientWidth - card.offsetWidth);
+      const x = Math.max(0, Math.min(maxX, parseFloat(card.style.left)||0));
+      card.style.left = x + 'px';
+      card.style.top = Math.max(0, parseFloat(card.style.top)||0) + 'px';
+    }
+    function updateDashboardHeight() {
+      const board = $('dashboard'); if (!board) return;
+      let bottom = 0;
+      board.querySelectorAll('.dash-card').forEach(c => { if (!c.classList.contains('panel-hidden') && !c.classList.contains('workspace-off')) bottom = Math.max(bottom, (parseFloat(c.style.top)||0) + c.offsetHeight); });
+      board.style.minHeight = Math.max(700, bottom + 24) + 'px';
+    }
+    function saveDashboardLayout() {
+      const board=$('dashboard'); if(!board || dashboardRestoring) return; const data={};
+      board.querySelectorAll('.dash-card').forEach(c=>{
+        const collapsed=c.classList.contains('panel-collapsed'), hidden=c.classList.contains('panel-hidden');
+        const rect=c.getBoundingClientRect();
+        const liveWidth=Math.max(260, Math.round(rect.width)||Number(c.dataset.savedWidth)||c.offsetWidth||360);
+        const liveHeight=collapsed ? Math.max(150, Number(c.dataset.expandedHeight)||Number(c.dataset.savedHeight)||150) : Math.max(150, Math.round(rect.height)||Number(c.dataset.savedHeight)||c.offsetHeight||150);
+        c.dataset.savedWidth=String(liveWidth); if(!collapsed){ c.dataset.savedHeight=String(liveHeight); c.dataset.expandedHeight=String(liveHeight); }
+        data[c.dataset.instance||c.dataset.card]={origin:c.dataset.origin||null,tabId:c.dataset.tabId||workspaceTabs[0]?.id||'main',x:Math.round(parseFloat(c.style.left)||0),y:Math.round(parseFloat(c.style.top)||0),width:liveWidth,height:liveHeight,expandedHeight:Math.max(150,Number(c.dataset.expandedHeight)||liveHeight),collapsed,hidden};
+      });
+      try {
+        localStorage.setItem('buzzer-dashboard-layout-v3',JSON.stringify(data));
+        localStorage.setItem('buzzer-workspaces-v1',JSON.stringify({tabs:workspaceTabs,active:activeWorkspaceId}));
+        localStorage.setItem('buzzer-layout-locked', layoutLocked ? '1' : '0');
+      } catch(_) {}
+      writeLayoutState({version:1,savedAt:Date.now(),workspaces:{tabs:workspaceTabs,active:activeWorkspaceId},locked:layoutLocked,panels:data});
+    }
+    function applyLayoutLock() {
+      const board = $('dashboard'); if (!board) return;
+      board.classList.toggle('layout-locked', layoutLocked);
+      const btn = $('toggleLayoutLock'); if (btn) btn.textContent = layoutLocked ? '🔒 Layout entsperren' : '🔓 Layout sperren';
+    }
+
+    const $ = (id) => document.getElementById(id);
+    const chooser = $('chooser');
+    const playerSetup = $('playerSetup');
+    const playerView = $('playerView');
+    const hostLogin = $('hostLogin');
+    const hostView = $('hostView');
+
+    function show(el) {
+      [chooser, playerSetup, playerView, hostLogin, hostView].forEach(x => x.classList.add('hidden'));
+      el.classList.remove('hidden');
+    }
+
+    function ensureAudio() {
+      try {
+        if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioContext.state === 'suspended') audioContext.resume();
+      } catch (_) {}
+    }
+
+    function playBuzzSound(volumeMultiplier = 1) {
+      try {
+        ensureAudio();
+        if (!audioContext) return;
+        const oscillator = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(220, audioContext.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(130, audioContext.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.18 * Math.max(0, Math.min(1, volumeMultiplier)), audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.18);
+        oscillator.connect(gain);
+        gain.connect(audioContext.destination);
+        oscillator.start();
+        oscillator.stop(audioContext.currentTime + 0.18);
+      } catch (_) {}
+    }
+
+    function playEarlySound() {
+      try {
+        ensureAudio();
+        if (!audioContext) return;
+        [0, 0.12].forEach((delay) => {
+          const oscillator = audioContext.createOscillator();
+          const gain = audioContext.createGain();
+          oscillator.type = 'square';
+          oscillator.frequency.setValueAtTime(420, audioContext.currentTime + delay);
+          gain.gain.setValueAtTime(0.13, audioContext.currentTime + delay);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + delay + 0.09);
+          oscillator.connect(gain);
+          gain.connect(audioContext.destination);
+          oscillator.start(audioContext.currentTime + delay);
+          oscillator.stop(audioContext.currentTime + delay + 0.09);
+        });
+      } catch (_) {}
+    }
+
+
+    const defaultSoundVolumes = { correct:70, wrong:70, nextQuestion:70, nextMainRound:70, countdown5:35, timeup:70, buzzer:70 };
+    let soundVolumes = {...defaultSoundVolumes};
+    try {
+      const saved = JSON.parse(localStorage.getItem('musiklexSoundVolumes') || '{}');
+      Object.keys(defaultSoundVolumes).forEach(key => {
+        if (Number.isFinite(Number(saved[key]))) soundVolumes[key] = Math.max(0, Math.min(100, Number(saved[key])));
+      });
+    } catch (_) {}
+
+    function soundVolumeFor(sound) {
+      return Math.max(0, Math.min(1, Number(soundVolumes[sound] ?? 70) / 100));
+    }
+    function saveSoundVolumes() {
+      try { localStorage.setItem('musiklexSoundVolumes', JSON.stringify(soundVolumes)); } catch (_) {}
+    }
+    function syncSoundVolumeControls() {
+      document.querySelectorAll('[data-sound-volume]').forEach(input => {
+        const key = input.dataset.soundVolume;
+        const value = Math.round(Number(soundVolumes[key] ?? defaultSoundVolumes[key] ?? 70));
+        input.value = value;
+        const label = document.querySelector(`[data-sound-volume-label="${key}"]`);
+        if (label) label.textContent = `${value}%`;
+      });
+    }
+
+    const customSoundFiles = {
+      correct: '/sounds/richtige-antwort.mp3',
+      wrong: '/sounds/falsche-antwort.mp3',
+      nextQuestion: '/sounds/naechste-fragerunde.mp3',
+      nextMainRound: '/sounds/naechste-hauptrunde.mp3',
+      countdown5: '/sounds/countdown-5-sek.mp3'
+    };
+    const customSoundPlayers = {};
+
+    function playSoundboard(sound, volumeOverride = null) {
+      try {
+        if (customSoundFiles[sound]) {
+          if (!customSoundPlayers[sound]) {
+            customSoundPlayers[sound] = new Audio(customSoundFiles[sound]);
+            customSoundPlayers[sound].preload = 'auto';
+          }
+          const audio = customSoundPlayers[sound];
+          const volume = volumeOverride == null ? soundVolumeFor(sound) : Math.max(0, Math.min(1, Number(volumeOverride)));
+          audio.volume = volume;
+          audio.pause();
+          audio.currentTime = 0;
+          audio.play().catch(() => {});
+          return;
+        }
+        ensureAudio();
+        if (!audioContext) return;
+        const now = audioContext.currentTime;
+        const tone = (freq, start, duration, type='sine', gainValue=.12) => {
+          const o=audioContext.createOscillator(), g=audioContext.createGain();
+          o.type=type; o.frequency.setValueAtTime(freq, now+start);
+          const volume = volumeOverride == null ? soundVolumeFor(sound) : Math.max(0, Math.min(1, Number(volumeOverride)));
+          g.gain.setValueAtTime(gainValue * volume, now+start); g.gain.exponentialRampToValueAtTime(.001, now+start+duration);
+          o.connect(g); g.connect(audioContext.destination); o.start(now+start); o.stop(now+start+duration);
+        };
+        if (sound==='timeup') { tone(660,0,.16,'square',.11); tone(660,.22,.16,'square',.11); tone(440,.44,.42,'square',.12); }
+        else if (sound==='buzzer') { playBuzzSound(volumeOverride == null ? soundVolumeFor(sound) : Math.max(0, Math.min(1, Number(volumeOverride)))); }
+      } catch (_) {}
+    }
+
+    $('playerRole').onclick = () => { role = 'player'; show(playerSetup); $('nameInput').focus(); };
+    $('hostRole').onclick = () => {
+      role = 'host-auth';
+      $('hostPassword').value=''; $('hostLoginError').textContent='';
+      show(hostLogin); $('hostPassword').focus();
+    };
+    function submitHostLogin(){
+      const password=$('hostPassword').value;
+      if(!password){ $('hostLoginError').textContent='Bitte Passwort eingeben.'; return; }
+      $('hostLoginError').textContent='Prüfe Passwort …';
+      socket.emit('host-login', password);
+    }
+    $('hostLoginButton').onclick=submitHostLogin;
+    $('hostPassword').addEventListener('keydown',e=>{ if(e.key==='Enter') submitHostLogin(); });
+    socket.on('host-auth-result', result => {
+      if(!result?.ok){ role='host-auth'; $('hostLoginError').textContent='Falsches Host-Passwort.'; $('hostPassword').select(); return; }
+      role='host'; ensureAudio(); show(hostView);
+      const savedBuzzerTexts = readBuzzerTextBackup();
+      if(savedBuzzerTexts && typeof savedBuzzerTexts === 'object') {
+        const serverTexts = state.buzzerTexts || {active:'AKTIV',inactive:'INAKTIV',locked:'LOCKED'};
+        const serverIsDefault = serverTexts.active==='AKTIV' && serverTexts.inactive==='INAKTIV' && serverTexts.locked==='LOCKED';
+        const browserDiffers = savedBuzzerTexts.active!=='AKTIV' || savedBuzzerTexts.inactive!=='INAKTIV' || savedBuzzerTexts.locked!=='LOCKED';
+        if(serverIsDefault && browserDiffers) socket.emit('host-set-buzzer-texts', savedBuzzerTexts);
+      }
+
+      const savedTeams=readTeamBackup();
+      if(savedTeams?.teams?.length){
+        teamBackupRestorePending=true;
+        socket.emit('host-restore-team-state', savedTeams);
+        setTimeout(()=>{ teamBackupRestorePending=false; saveTeamBackup(); },700);
+      }
+      render();
+      requestAnimationFrame(() => requestAnimationFrame(() => initDashboardLayout()));
+    });
+
+    document.querySelectorAll('.back').forEach(btn => btn.onclick = () => {
+      role = null;
+      playerName = '';
+      playerSocketId = '';
+      buzzPending = false;
+      show(chooser);
+    });
+
+    function join() {
+      const name = $('nameInput').value.trim();
+      if (!name) return;
+      ensureAudio();
+      playerName = name;
+      playerSocketId = socket.id;
+      socket.emit('join-player', name);
+      $('helloPlayer').textContent = `Spieler: ${name}`;
+      show(playerView);
+      render();
+    }
+
+    function buzz() {
+      if (role !== 'player' || buzzPending) return;
+
+      const me = (state.players || []).find(p => p.id === socket.id);
+      const myBuzz = (state.buzzes || []).find(b => b.socketId === socket.id);
+
+      if (myBuzz) return;
+      if (state.globalBuzzerLocked) return;
+      if (me && isBuzzerManuallyLocked(me)) return;
+      if (state.roundOpen && me && playerLockRemaining(me) > 0) return;
+      if (!state.roundOpen && state.roundStart !== null) return;
+
+      ensureAudio();
+      buzzPending = true;
+      $('buzzer').classList.add('keyboard-pressed');
+      setTimeout(() => $('buzzer').classList.remove('keyboard-pressed'), 100);
+
+      socket.emit('buzz');
+
+      setTimeout(() => {
+        buzzPending = false;
+        render();
+      }, 650);
+    }
+
+    $('joinButton').onclick = join;
+    $('nameInput').addEventListener('keydown', e => { if (e.key === 'Enter') join(); });
+    $('buzzer').onclick = buzz;
+$('togglePlayerChat').onclick = () => {
+      const shell=$('playerChatShell');
+      shell.classList.toggle('collapsed');
+      $('togglePlayerChat').textContent=shell.classList.contains('collapsed')?'Chat öffnen':'Minimieren';
+      if(!shell.classList.contains('collapsed')) {
+        if(playerChatChannel==='host') playerChatUnread.host=0;
+        else if(playerChatChannel==='team') playerChatUnread.team=0;
+        renderPlayerChat();
+      }
+    };
+    $('playerChatHostTab').onclick = () => { playerChatChannel='host'; playerChatUnread.host=0; renderPlayerChat(); };
+    $('playerChatTeamTab').onclick = () => { playerChatChannel='team'; playerChatUnread.team=0; renderPlayerChat(); };
+    $('playerChatAnswerTab').onclick = () => { playerChatChannel='answer'; renderPlayerChat(); };
+
+    $('openBugReport').onclick = () => {
+      $('bugReportMessage').value=''; $('bugReportStatus').textContent='';
+      $('bugReportDialog').showModal();
+    };
+    $('cancelBugReport').onclick = () => $('bugReportDialog').close();
+    $('submitBugReport').onclick = () => {
+      const message=$('bugReportMessage').value.trim();
+      if(!message){ $('bugReportStatus').textContent='Bitte beschreibe den Bug kurz.'; return; }
+      $('submitBugReport').disabled=true;
+      $('bugReportStatus').textContent='Wird gesendet …';
+      socket.emit('player-bug-report',{area:$('bugReportArea').value,message,userAgent:navigator.userAgent});
+    };
+
+    $('playerChatNotice').onclick = () => openUnreadPlayerChat();
+    $('playerChatNotice').addEventListener('keydown', e => { if(e.key==='Enter' || e.key===' '){ e.preventDefault(); openUnreadPlayerChat(); } });
+    $('playerChatSend').onclick = sendPlayerChatMessage;
+    $('playerChatImage').onclick=()=>$('playerChatImageInput').click();
+    $('playerChatImageInput').onchange=e=>{const f=e.target.files?.[0]; if(!f)return; chatImagePayload(f,image=>{const settings=playerChatState.settings||{}; if(playerChatChannel==='host'&&!settings.privateEnabled)return; if(playerChatChannel==='team'&&(!settings.teamEnabled||!playerChatState.teamId))return; socket.emit('player-chat-send',{channel:playerChatChannel,message:'',image});}); e.target.value='';};
+    $('playerChatInput').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendPlayerChatMessage(); } });
+    $('playerAnswerSubmit').onclick = submitPlayerAnswer;
+    $('playerAnswerInput').addEventListener('keydown', e => { if(e.key==='Enter'){ e.preventDefault(); submitPlayerAnswer(); } });
+
+    document.addEventListener('keydown', (e) => {
+      if (e.code !== 'Space' || e.repeat || role !== 'player' || playerView.classList.contains('hidden')) return;
+      const tag = document.activeElement?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      e.preventDefault();
+      buzz();
+    });
+
+    const HOTKEY_STORAGE='musiklexHotkeysV1';
+    const hotkeyActions=[
+      ['startRound','Buzzer freigeben'],['closeRound','Buzzer sperren'],['resetRound','Buzzer zurücksetzen'],
+      ['restartAnswerTimer','Antworttimer neu starten'],['nextAnswerTimer','Falsch → nächster Spieler'],['resetAnswerTimer','Antworttimer zurücksetzen'],
+      ['revealAnswers','Antworten aufdecken'],['resetAnswers','Antworten zurücksetzen'],
+      ['sound:correct','Sound: Richtige Antwort'],['sound:wrong','Sound: Falsche Antwort'],['sound:nextQuestion','Sound: Nächste Fragerunde'],['sound:nextMainRound','Sound: Nächste Hauptrunde'],
+      ['vkPlay','Video: Play'],['vkPause','Video: Pause'],['vkMute','Video: Ton aus'],['vkUnmute','Video: Ton an'],
+      ['yayStart','Year After Year: Start/Weiter'],['yayPause','Year After Year: Pause'],['yayWrong','Year After Year: Falsch → weiter'],['yayCorrect','Year After Year: Richtig']
+    ];
+    let hotkeyConfig={enabled:true,ignoreInputs:true,keys:{}}; let hotkeyLearning=null;
+    try{const v=JSON.parse(localStorage.getItem(HOTKEY_STORAGE)||'null');if(v)hotkeyConfig={...hotkeyConfig,...v,keys:{...hotkeyConfig.keys,...(v.keys||{})}}}catch(_){ }
+    const hotkeyHeldMods=new Set();
+    function modifierName(e){const k=e.key;return k==='Control'?'Ctrl':k==='Shift'?'Shift':k==='Alt'?'Alt':k==='Meta'?'Meta':''}
+    function keySignature(e){
+      const mod=modifierName(e); if(mod){hotkeyHeldMods.add(mod);return ''}
+      const mods=[];
+      if(e.ctrlKey||hotkeyHeldMods.has('Ctrl'))mods.push('Ctrl');
+      if(e.altKey||hotkeyHeldMods.has('Alt'))mods.push('Alt');
+      if(e.shiftKey||hotkeyHeldMods.has('Shift'))mods.push('Shift');
+      if(e.metaKey||hotkeyHeldMods.has('Meta'))mods.push('Meta');
+      const k=e.code||e.key;
+      return [...mods,k].join('+')
+    }
+    function saveHotkeys(){localStorage.setItem(HOTKEY_STORAGE,JSON.stringify(hotkeyConfig))}
+    function renderHotkeys(){
+      $('hotkeysEnabled').checked=hotkeyConfig.enabled;$('hotkeysIgnoreInputs').checked=hotkeyConfig.ignoreInputs;
+      $('hotkeyStatus').textContent=hotkeyConfig.enabled?'🟢 HOTKEYS AKTIV':'🔴 HOTKEYS DEAKTIVIERT';$('hotkeyStatus').className='hotkey-status '+(hotkeyConfig.enabled?'on':'off');
+      $('hotkeyRows').innerHTML=hotkeyActions.map(([id,label])=>{const c=hotkeyConfig.keys[id]||{key:'',enabled:true};return `<div class="hotkey-row"><label><input type="checkbox" ${c.enabled!==false?'checked':''} onchange="setHotkeyEnabled('${id}',this.checked)"> ${label}</label><div class="hotkey-key">${escapeHtml(c.key||'—')}</div><button type="button" onclick="learnHotkey('${id}',this)">${hotkeyLearning===id?'Taste drücken …':'Belegen'}</button></div>`}).join('');
+    }
+    window.setHotkeyEnabled=(id,v)=>{hotkeyConfig.keys[id]={...(hotkeyConfig.keys[id]||{}),enabled:v};saveHotkeys();renderHotkeys()};
+    window.learnHotkey=(id)=>{hotkeyLearning=id;renderHotkeys()};
+    function triggerHotkeyAction(id){if(id.startsWith('sound:')){const sound=id.split(':')[1];ensureAudio();socket.emit('host-play-sound',{sound,share:$('soundSharePlayers').checked,volume:soundVolumeFor(sound)});return} const el=$(id);if(el&&!el.disabled)el.click()}
+    $('hotkeysEnabled').onchange=e=>{hotkeyConfig.enabled=e.target.checked;saveHotkeys();renderHotkeys()};
+    $('hotkeysIgnoreInputs').onchange=e=>{hotkeyConfig.ignoreInputs=e.target.checked;saveHotkeys()};
+    socket.on('global-hotkey',payload=>{
+      if(role!=='host'||!hotkeyConfig.enabled)return;
+      const sig=String(payload?.signature||'');
+      const hit=hotkeyActions.find(([id])=>{const c=hotkeyConfig.keys[id];return c&&c.enabled!==false&&c.key===sig});
+      if(hit)triggerHotkeyAction(hit[0]);
+    });
+    document.addEventListener('keyup',e=>{const m=modifierName(e);if(m)hotkeyHeldMods.delete(m)});
+    window.addEventListener('blur',()=>hotkeyHeldMods.clear());
+    document.addEventListener('keydown',e=>{
+      if(role!=='host')return;
+      if(hotkeyLearning){e.preventDefault();const sig=keySignature(e);if(!sig)return;hotkeyConfig.keys[hotkeyLearning]={key:sig,enabled:true};hotkeyLearning=null;saveHotkeys();renderHotkeys();return}
+      if(!hotkeyConfig.enabled||e.repeat)return;const tag=document.activeElement?.tagName;if(hotkeyConfig.ignoreInputs&&(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||document.activeElement?.isContentEditable))return;
+      const sig=keySignature(e);const hit=hotkeyActions.find(([id])=>{const c=hotkeyConfig.keys[id];return c&&c.enabled!==false&&c.key===sig});if(hit){e.preventDefault();triggerHotkeyAction(hit[0])}
+    });
+    renderHotkeys();
+
+    // Year After Year – gekoppelt an den bestehenden Buzzer.
+    let yayRunning=false, yayElapsedMs=0, yayStartedPerf=0, yayCurrentBuzz=null, yayRaf=0;
+    function yayElapsed(){return yayElapsedMs+(yayRunning?(performance.now()-yayStartedPerf):0)}
+    function yayTol(ms=yayElapsed()) { return Math.max(0, Math.floor(ms/10000)); }
+    function yayRender(){
+      const ms=yayElapsed(), tol=yayTol(ms), sec=ms/1000;
+      $('yayTimer').textContent=sec.toFixed(2).replace('.',',')+' s';
+      $('yayTolerance').textContent=tol===0?'EXAKT':'±'+tol+' JAHR'+(tol===1?'':'E');
+      const cy=Number($('yayCorrectYear').value);
+      $('yayRange').textContent=Number.isFinite(cy)&&cy>0?(tol===0?`Gültig: ${cy}`:`Gültig: ${cy-tol}–${cy+tol}`):'Korrektes Jahr eintragen.';
+      if(yayRunning) yayRaf=requestAnimationFrame(yayRender);
+    }
+    function yayStart(){
+      if(!$('yayEnabled').checked)return;
+      if(yayRunning)return;
+      yayCurrentBuzz=null;$('yayWrong').disabled=true;$('yayCorrect').disabled=true;
+      yayStartedPerf=performance.now();yayRunning=true;
+      $('yayBuzzed').textContent='🟢 Song läuft – Buzzer aktiv';$('yayBuzzed').className='status open';
+      socket.emit('host-start');cancelAnimationFrame(yayRaf);yayRender();
+    }
+    function yayPause(label='⏸️ Pausiert'){
+      if(yayRunning){yayElapsedMs=yayElapsed();yayRunning=false;cancelAnimationFrame(yayRaf)}
+      $('yayBuzzed').textContent=label;$('yayBuzzed').className='status closed';yayRender();
+    }
+    function yayReset(){
+      yayRunning=false;cancelAnimationFrame(yayRaf);yayElapsedMs=0;yayCurrentBuzz=null;
+      $('yayGuessYear').value='';$('yayWrong').disabled=true;$('yayCorrect').disabled=true;
+      $('yayBuzzed').textContent='Bereit für einen neuen Song.';$('yayBuzzed').className='status closed';
+      socket.emit('host-reset');yayRender();
+    }
+    function yayEvaluate(){
+      const guess=Number($('yayGuessYear').value), correct=Number($('yayCorrectYear').value), tol=yayTol();
+      if(!Number.isFinite(guess)||!Number.isFinite(correct)||!guess||!correct){$('yayCheck').textContent='Bitte korrektes und geratenes Jahr eintragen.';return null}
+      const ok=Math.abs(guess-correct)<=tol;
+      $('yayCheck').textContent=`${guess} ist ${ok?'✅ GÜLTIG':'❌ NICHT GÜLTIG'} · erlaubt: ${tol?`${correct-tol}–${correct+tol}`:correct}`;
+      return ok;
+    }
+    $('yayStart').onclick=yayStart;
+    $('yayPause').onclick=()=>yayPause();
+    $('yayReset').onclick=yayReset;
+    $('yayCorrectYear').oninput=()=>yayRender();
+    $('yayGuessYear').oninput=()=>yayEvaluate();
+    $('yayWrong').onclick=()=>{
+      if(!yayCurrentBuzz)return;
+      if(yayEvaluate()===true && !confirm('Die eingetragene Jahreszahl liegt im gültigen Bereich. Trotzdem als falsch werten?'))return;
+      socket.emit('host-set-player-buzzer-lock',{id:yayCurrentBuzz.socketId,locked:true});
+      $('yayGuessYear').value='';yayCurrentBuzz=null;$('yayWrong').disabled=true;$('yayCorrect').disabled=true;
+      yayStartedPerf=performance.now();yayRunning=true;$('yayBuzzed').textContent='🟢 Weiter – nächster Buzz stoppt wieder';$('yayBuzzed').className='status open';
+      cancelAnimationFrame(yayRaf);yayRender();
+    };
+    $('yayCorrect').onclick=()=>{
+      if(!yayCurrentBuzz)return;
+      if(yayEvaluate()===false && !confirm('Die eingetragene Jahreszahl liegt außerhalb des gültigen Bereichs. Trotzdem als richtig werten?'))return;
+      const p=(state.players||[]).find(x=>x.id===yayCurrentBuzz.socketId);
+      if(p?.teamId) { for(let i=0;i<5;i++) socket.emit('host-change-team-score',{id:p.teamId,direction:1}); }
+      else if(p) { for(let i=0;i<5;i++) socket.emit('host-change-score',{id:p.id,direction:1}); }
+      yayPause(`✅ ${yayCurrentBuzz.name} richtig – +5 Punkte`);socket.emit('host-close');
+      $('yayWrong').disabled=true;$('yayCorrect').disabled=true;
+    };
+
+    $('startRound').onclick = () => { ensureAudio(); socket.emit('host-start'); };
+    $('closeRound').onclick = () => {
+      socket.emit('host-close');
+      // Host feedback is immediate; server broadcast confirms it for all players.
+      $('hostStatus').textContent = 'Buzzer sind gesperrt';
+      $('hostStatus').className = 'status closed';
+    };
+    $('resetRound').onclick = () => socket.emit('host-reset');
+    $('toggleLayoutLock').onclick = () => { layoutLocked = !layoutLocked; localStorage.setItem('buzzer-layout-locked', layoutLocked ? '1' : '0'); applyLayoutLock(); };
+    $('resetLayout').onclick = () => { localStorage.removeItem('buzzer-dashboard-layout-v3'); localStorage.removeItem('buzzer-workspaces-v1'); localStorage.removeItem('buzzer-dashboard-layout-v2'); localStorage.removeItem('buzzer-dashboard-layout'); localStorage.removeItem('buzzer-layout-locked'); localStorage.removeItem(LAYOUT_STATE_KEY); localStorage.removeItem(LAYOUT_BACKUP_KEY); location.reload(); };
+    $('addWorkspace').onclick=()=>{ const name=(prompt('Name des neuen Tabs:','NEUER TAB')||'').trim(); if(!name) return; const id='tab-'+Date.now(); workspaceTabs.push({id,name:name.slice(0,30)}); activeWorkspaceId=id; saveWorkspaceConfig(); renderWorkspaceTabs(); switchWorkspace(id); };
+    $('renameWorkspace').onclick=()=>{ const t=workspaceTabs.find(x=>x.id===activeWorkspaceId); if(!t)return; const name=(prompt('Neuer Tab-Name:',t.name)||'').trim(); if(!name)return; t.name=name.slice(0,30); saveWorkspaceConfig(); renderWorkspaceTabs(); };
+    $('deleteWorkspace').onclick=()=>{ if(workspaceTabs.length<=1){alert('Mindestens ein Tab muss bleiben.');return;} const t=workspaceTabs.find(x=>x.id===activeWorkspaceId); if(!confirm(`Tab „${t?.name||''}“ löschen? Panels darin werden in den ersten Tab verschoben.`))return; const fallback=workspaceTabs.find(x=>x.id!==activeWorkspaceId); document.querySelectorAll('#dashboard .dash-card').forEach(c=>{if(c.dataset.tabId===activeWorkspaceId)c.dataset.tabId=fallback.id;}); workspaceTabs=workspaceTabs.filter(x=>x.id!==activeWorkspaceId); activeWorkspaceId=fallback.id; saveDashboardLayout(); renderWorkspaceTabs(); switchWorkspace(activeWorkspaceId); };
+    $('moveWorkspaceLeft').onclick=()=>{ const i=workspaceTabs.findIndex(x=>x.id===activeWorkspaceId); if(i>0){[workspaceTabs[i-1],workspaceTabs[i]]=[workspaceTabs[i],workspaceTabs[i-1]];saveWorkspaceConfig();renderWorkspaceTabs();} };
+    $('moveWorkspaceRight').onclick=()=>{ const i=workspaceTabs.findIndex(x=>x.id===activeWorkspaceId); if(i>=0&&i<workspaceTabs.length-1){[workspaceTabs[i+1],workspaceTabs[i]]=[workspaceTabs[i],workspaceTabs[i+1]];saveWorkspaceConfig();renderWorkspaceTabs();} };
+    $('restorePanel').onclick = () => { const key=$('hiddenPanelSelect').value; if(!key) return; const card=document.querySelector('#dashboard .dash-card[data-instance="'+CSS.escape(key)+'"]'); if(card){ setPanelHidden(card,false); card.scrollIntoView({behavior:'smooth',block:'nearest'}); } };
+    $('hiddenPanelSelect').onchange = () => { $('restorePanel').disabled = !$('hiddenPanelSelect').value; };
+    function submitBuzzerTexts() {
+      const payload = {
+        active: $('buzzerTextActive').value.trim() || 'AKTIV',
+        inactive: $('buzzerTextInactive').value.trim() || 'INAKTIV',
+        locked: $('buzzerTextLocked').value.trim() || 'LOCKED'
+      };
+      saveBuzzerTextBackup(payload);
+      socket.emit('host-set-buzzer-texts', payload);
+      $('buzzerTextsSaved').textContent = `Gespeichert · Aktiv: ${payload.active} · Inaktiv: ${payload.inactive} · Gesperrt: ${payload.locked}`;
+    }
+
+    $('saveBuzzerTexts').onclick = submitBuzzerTexts;
+    $('resetBuzzerTexts').onclick = () => {
+      $('buzzerTextActive').value='AKTIV';
+      $('buzzerTextInactive').value='INAKTIV';
+      $('buzzerTextLocked').value='LOCKED';
+      submitBuzzerTexts();
+    };
+    ['buzzerTextActive','buzzerTextInactive','buzzerTextLocked'].forEach(id => {
+      $(id).addEventListener('keydown', e => { if(e.key==='Enter') submitBuzzerTexts(); });
+    });
+
+    $('setPointValue').onclick = () => socket.emit('host-set-point-value', $('pointValue').value);
+    $('setEarlyPenalty').onclick = () => socket.emit('host-set-early-penalty', $('earlyPenalty').value);
+    $('saveAnswerTimer').onclick = () => socket.emit('host-set-answer-timer', { enabled: $('answerTimerEnabled').checked, seconds: $('answerTimerSeconds').value });
+    $('answerTimerEnabled').addEventListener('change', () => socket.emit('host-set-answer-timer', { enabled: $('answerTimerEnabled').checked, seconds: $('answerTimerSeconds').value }));
+    $('restartAnswerTimer').onclick = () => socket.emit('host-restart-answer-timer');
+    $('nextAnswerTimer').onclick = () => socket.emit('host-next-answer-timer');
+    $('resetAnswerTimer').onclick = () => socket.emit('host-reset-answer-timer');
+    $('showPlayerTribune').addEventListener('change', e => socket.emit('host-set-player-tribune-display', e.target.checked));
+    syncSoundVolumeControls();
+    document.querySelectorAll('[data-sound-volume]').forEach(input => input.addEventListener('input', e => {
+      const key = e.target.dataset.soundVolume;
+      soundVolumes[key] = Math.max(0, Math.min(100, Number(e.target.value)));
+      const label = document.querySelector(`[data-sound-volume-label="${key}"]`);
+      if (label) label.textContent = `${Math.round(soundVolumes[key])}%`;
+      saveSoundVolumes();
+    }));
+    $('resetSoundVolumes').addEventListener('click', () => { soundVolumes = {...defaultSoundVolumes}; saveSoundVolumes(); syncSoundVolumeControls(); });
+
+    document.querySelectorAll('[data-sound]').forEach(btn => btn.addEventListener('click', () => {
+      ensureAudio();
+      const sound = btn.dataset.sound;
+      socket.emit('host-play-sound', { sound, share: $('soundSharePlayers').checked, volume: soundVolumeFor(sound) });
+    }));
+    $('addTeam').onclick = () => {
+      socket.emit('host-add-team', $('newTeamName').value);
+      $('newTeamName').value = '';
+    };
+    $('privateChatEnabled').addEventListener('change', sendChatSettings);
+    $('teamChatEnabled').addEventListener('change', sendChatSettings);
+    $('hostChatSend').onclick = sendHostChatMessage;
+    $('hostChatImage').onclick=()=>$('hostChatImageInput').click();
+    $('hostChatImageInput').onchange=e=>{const f=e.target.files?.[0]; if(!f||!hostChatSelection.id)return; chatImagePayload(f,image=>socket.emit('host-chat-send',{channelType:hostChatSelection.type,targetId:hostChatSelection.id,message:'',image})); e.target.value='';};
+    $('hostChatInput').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); sendHostChatMessage(); } });
+    $('clearHostChat').onclick = () => {
+      if(!hostChatSelection.id) return;
+      if(!confirm('Diesen Chatverlauf wirklich löschen?')) return;
+      socket.emit('host-chat-clear',{channelType:hostChatSelection.type,targetId:hostChatSelection.id});
+    };
+    $('revealAnswers').onclick = () => {
+      if(!hostAnswerState.submittedCount || hostAnswerState.revealed) return;
+      socket.emit('host-answers-reveal');
+    };
+    $('resetAnswers').onclick = () => {
+      if(!hostAnswerState.submittedCount && !hostAnswerState.revealed) return;
+      if(!confirm('Alle eingeloggen Antworten wirklich zurücksetzen?')) return;
+      socket.emit('host-answers-reset');
+    };
+    $('pointValue').addEventListener('keydown', e => {
+      if (e.key === 'Enter') socket.emit('host-set-point-value', $('pointValue').value);
+    });
+    $('earlyPenalty').addEventListener('keydown', e => {
+      if (e.key === 'Enter') socket.emit('host-set-early-penalty', $('earlyPenalty').value);
+    });
+    $('newTeamName').addEventListener('keydown', e => {
+      if (e.key === 'Enter') $('addTeam').click();
+    });
+    $('showPlayerBuzzDetails').addEventListener('change', e => {
+      socket.emit('host-set-player-buzz-details', e.target.checked);
+    });
+    $('saveGameInfo').onclick = () => {
+      socket.emit('host-set-game-info', { name: $('currentGameName').value, rules: $('currentGameRules').value });
+      $('gameInfoSaved').textContent = 'Gespeichert.';
+    };
+    $('clearGameInfo').onclick = () => {
+      $('currentGameName').value = '';
+      $('currentGameRules').value = '';
+      socket.emit('host-set-game-info', { name: '', rules: '' });
+      $('gameInfoSaved').textContent = 'Anzeige geleert.';
+    };
+
+    const flushLayout = () => { if(dashboardInitialized && !dashboardRestoring) { clearTimeout(layoutSaveTimer); layoutSaveTimer=null; saveDashboardLayout(); } };
+    window.addEventListener('beforeunload', flushLayout);
+    window.addEventListener('pagehide', flushLayout);
+    document.addEventListener('visibilitychange', () => { if(document.visibilityState==='hidden') flushLayout(); });
+
+    socket.on('kicked', () => {
+      role=null; playerName=''; playerSocketId=''; buzzPending=false; playerMessages=[]; playerChatState={settings:{privateEnabled:true,teamEnabled:true},private:[],team:[],teamId:''}; playerAnswerState={key:'',label:'',submitted:false,revealed:false};
+      alert('Du wurdest vom Host aus der aktuellen Session entfernt.');
+      show(chooser);
+    });
+    socket.on('host-auth-required', () => {
+      if(role==='host'){ role='host-auth'; show(hostLogin); $('hostLoginError').textContent='Host-Anmeldung ist abgelaufen. Bitte erneut anmelden.'; }
+    });
+
+    socket.on('state', nextState => {
+      state = nextState;
+      stateReceivedAt = performance.now();
+      timerStateReceivedAt = performance.now();
+      const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
+      if (!myBuzz) buzzPending = false;
+      render();
+      if(role==='host' && !teamBackupRestorePending) saveTeamBackup();
+      if (role === 'host' && dashboardInitialized) requestAnimationFrame(syncAllMirrors);
+    });
+
+    socket.on('buzz-confirmed', () => {
+      buzzPending = false;
+      if (role === 'player') playBuzzSound();
+    });
+
+    socket.on('buzz-event', (buzz) => {
+      if (role === 'host') playBuzzSound();
+      if(role==='host' && $('yayEnabled')?.checked && yayRunning){
+        yayCurrentBuzz=buzz;yayPause(`🔔 ${buzz?.name||'Jemand'} hat gebuzzert – Timer eingefroren`);
+        $('yayWrong').disabled=false;$('yayCorrect').disabled=false;$('yayGuessYear').focus();
+      }
+    });
+
+    socket.on('early-buzz-confirmed', () => {
+      buzzPending = false;
+      if (role === 'player') playEarlySound();
+    });
+
+    socket.on('early-buzz-event', () => {
+      if (role === 'host') playEarlySound();
+    });
+
+    socket.on('host-message', payload => {
+      if (role !== 'player' || !payload?.message) return;
+      playerMessages.unshift(payload);
+      playerMessages = playerMessages.slice(0, 5);
+      renderPlayerMessages();
+    });
+
+    socket.on('chat-state', payload => {
+      if (role !== 'player' || !payload) return;
+      playerChatState = payload;
+      renderPlayerChat();
+    });
+
+    socket.on('host-chat-state', payload => {
+      if (role !== 'host' || !payload) return;
+      hostChatState = payload;
+      renderHostChat();
+    });
+
+
+    socket.on('player-answer-state', payload => {
+      if (role !== 'player' || !payload) return;
+      playerAnswerState = payload;
+      renderPlayerChat();
+    });
+
+    socket.on('host-answer-state', payload => {
+      if (role !== 'host' || !payload) return;
+      hostAnswerState = payload;
+      renderHostAnswers();
+    });
+
+
+    socket.on('host-bug-reports', payload => {
+      if(role!=='host' || !payload) return;
+      hostBugReports = Array.isArray(payload.reports) ? payload.reports : [];
+      renderHostBugReports();
+    });
+
+    socket.on('bug-report-submitted', info => {
+      if(role!=='player') return;
+      $('submitBugReport').disabled=false;
+      if(info?.ok){
+        $('bugReportStatus').textContent='Danke! Der Bug wurde an den Host gemeldet.';
+        setTimeout(()=>{ try{$('bugReportDialog').close();}catch(_){} },700);
+      } else $('bugReportStatus').textContent='Bug konnte nicht gesendet werden.';
+    });
+
+    socket.on('answer-submit-error', info => {
+      if (role === 'player') alert(info?.message || 'Antwort konnte nicht eingeloggt werden.');
+    });
+
+    socket.on('chat-new-message', item => {
+      if (!item) return;
+      if (role === 'player') {
+        const me = state.players.find(p=>p.id===socket.id);
+        if (item.scope === 'private' && item.playerId === socket.id && item.senderType === 'host') {
+          if (playerChatChannel !== 'host' || $('playerChatShell').classList.contains('collapsed')) playerChatUnread.host++;
+        }
+        if (item.scope === 'team' && me?.teamId === item.teamId && item.senderId !== socket.id) {
+          if (playerChatChannel !== 'team' || $('playerChatShell').classList.contains('collapsed')) playerChatUnread.team++;
+        }
+        renderPlayerChat();
+      }
+      if (role === 'player') updateBuzzerStateLabel();
+
+      if (role === 'host') {
+        const key = `${item.scope === 'private' ? 'private' : 'team'}:${item.scope === 'private' ? item.playerId : item.teamId}`;
+        if (!(hostChatSelection.type === (item.scope==='private'?'private':'team') && hostChatSelection.id === (item.scope==='private'?item.playerId:item.teamId))) {
+          hostChatUnread[key] = (hostChatUnread[key]||0)+1;
+        }
+        renderHostChat();
+      }
+    });
+
+    socket.on('chat-send-error', info => {
+      if(role==='player') alert(info?.message || 'Nachricht konnte nicht gesendet werden.');
+    });
+
+    socket.on('soundboard-play', payload => {
+      if (payload?.sound) playSoundboard(payload.sound, payload.volume);
+    });
+
+    socket.on('host-message-sent', info => {
+      if (role !== 'host') return;
+      $('messageSendStatus').textContent = `Gesendet an ${info?.count ?? 0} Spieler.`;
+      if ((info?.count ?? 0) > 0) $('hostMessage').value = '';
+    });
+
+    socket.on('buzz-locked', () => {
+      buzzPending = false;
+      render();
+    });
+
+    socket.on('buzz-disabled', () => {
+      buzzPending = false;
+      render();
+    });
+
+    function chatTime(ts) {
+      return new Date(ts || Date.now()).toLocaleTimeString('de-DE',{hour:'2-digit',minute:'2-digit',second:'2-digit'});
+    }
+
+    function chatLineHtml(item, mine) {
+      const cls = `chat-line${mine?' mine':''}`;
+      const imageHtml=item.image?.dataUrl?`<img class="chat-image" src="${escapeAttribute(item.image.dataUrl)}" alt="${escapeAttribute(item.image.name||'Chat-Bild')}" title="Zum Vergrößern klicken" onclick="window.open(this.src,'_blank')">`:''; return `<div class="${cls}"><div class="chat-author">${escapeHtml(item.senderName || (item.senderType==='host'?'Host':'Spieler'))}</div>${item.message?`<div>${escapeHtml(item.message)}</div>`:''}${imageHtml}<div class="chat-time">${chatTime(item.sentAt)}</div></div>`;
+    }
+
+    function chatImagePayload(file, done) {
+      if(!file) return;
+      if(!/^image\/(png|jpeg|gif|webp)$/.test(file.type)){ alert('Bitte PNG, JPG, GIF oder WebP verwenden.'); return; }
+      if(file.size>1500000){ alert('Das Bild darf maximal 1,5 MB groß sein.'); return; }
+      const r=new FileReader(); r.onload=()=>done({name:file.name,dataUrl:r.result}); r.readAsDataURL(file);
+    }
+
+    function sendPlayerChatMessage() {
+      const input=$('playerChatInput'); const message=input.value.trim(); if(!message)return;
+      const settings=playerChatState.settings||{};
+      if(playerChatChannel==='host' && !settings.privateEnabled)return;
+      if(playerChatChannel==='team' && (!settings.teamEnabled || !playerChatState.teamId))return;
+      socket.emit('player-chat-send',{channel:playerChatChannel,message});
+      input.value='';
+    }
+
+
+    function submitPlayerAnswer() {
+      if (playerAnswerState.submitted || playerAnswerState.revealed) return;
+      const input = $('playerAnswerInput');
+      const answer = input.value.trim();
+      if (!answer) return;
+      socket.emit('player-answer-submit', { answer });
+      input.value = '';
+    }
+
+    function updatePlayerChatNotification() {
+      const total=(playerChatUnread.host||0)+(playerChatUnread.team||0);
+      const notice=$('playerChatNotice');
+      const headBadge=$('playerChatHeadUnread');
+
+      $('playerChatNoticeCount').textContent=total;
+      headBadge.textContent=total;
+      notice.classList.toggle('hidden',!total);
+      headBadge.classList.toggle('hidden',!total);
+      $('playerChatShell').classList.toggle('has-unread',!!total);
+
+      if(!total) return;
+
+      let text='Neue Nachricht';
+      if(playerChatUnread.host && playerChatUnread.team) {
+        text='Neue Privat- und Teamnachrichten';
+      } else if(playerChatUnread.host) {
+        text=playerChatUnread.host===1 ? 'Neue Nachricht vom Host' : `${playerChatUnread.host} neue Nachrichten vom Host`;
+      } else if(playerChatUnread.team) {
+        text=playerChatUnread.team===1 ? 'Neue Nachricht im Teamchat' : `${playerChatUnread.team} neue Nachrichten im Teamchat`;
+      }
+      $('playerChatNoticeText').textContent=text;
+    }
+
+    function openUnreadPlayerChat() {
+      const shell=$('playerChatShell');
+      shell.classList.remove('collapsed');
+      $('togglePlayerChat').textContent='Minimieren';
+
+      if(playerChatUnread.host) {
+        playerChatChannel='host';
+        playerChatUnread.host=0;
+      } else if(playerChatUnread.team) {
+        playerChatChannel='team';
+        playerChatUnread.team=0;
+      }
+
+      renderPlayerChat();
+      shell.scrollIntoView({behavior:'smooth',block:'nearest'});
+    }
+
+    function renderPlayerChat() {
+      const settings=playerChatState.settings||{privateEnabled:true,teamEnabled:true};
+      const channelChanged = lastPlayerChatChannel !== playerChatChannel;
+      lastPlayerChatChannel = playerChatChannel;
+
+      $('playerChatHostTab').classList.toggle('active',playerChatChannel==='host');
+      $('playerChatTeamTab').classList.toggle('active',playerChatChannel==='team');
+      $('playerChatAnswerTab').classList.toggle('active',playerChatChannel==='answer');
+      $('playerChatTeamTab').disabled=!playerChatState.teamId;
+
+      const me = state.players.find(p=>p.id===socket.id);
+      const team = me?.teamId ? state.teams.find(t=>t.id===me.teamId) : null;
+      $('playerChatAnswerTab').textContent = team ? 'Team-Antwort' : 'Solo-Antwort';
+      $('playerAnswerTeamLabel').textContent = team
+        ? `Gemeinsame Antwort für ${team.name}. Sobald ein Teammitglied einloggt, ist die Antwort für das ganze Team gesperrt.`
+        : 'Du bist keinem Team zugeordnet. Diese Antwort gehört nur dir.';
+
+      const hostBadge=$('playerHostUnread');
+      hostBadge.textContent=playerChatUnread.host;
+      hostBadge.classList.toggle('hidden',!playerChatUnread.host);
+      const teamBadge=$('playerTeamUnread');
+      teamBadge.textContent=playerChatUnread.team;
+      teamBadge.classList.toggle('hidden',!playerChatUnread.team);
+      updatePlayerChatNotification();
+
+      const answerMode = playerChatChannel === 'answer';
+      $('playerAnswerPanel').classList.toggle('hidden', !answerMode);
+      $('playerChatLog').classList.toggle('hidden', answerMode);
+      $('playerChatCompose').classList.toggle('hidden', answerMode);
+      $('playerChatDisabled').classList.add('hidden');
+
+      if (answerMode) {
+        const submitted = !!playerAnswerState.submitted;
+        const revealed = !!playerAnswerState.revealed;
+        const status = $('playerAnswerStatus');
+        const compose = $('playerAnswerCompose');
+
+        status.classList.toggle('logged', submitted);
+        if (submitted) {
+          status.textContent = revealed ? 'Antwort eingeloggt ✓ · Antworten wurden aufgedeckt.' : 'Antwort eingeloggt ✓';
+        } else if (revealed) {
+          status.textContent = 'Die Antworten wurden bereits aufgedeckt. Warte auf den nächsten Reset.';
+        } else {
+          status.textContent = team ? 'Noch keine Team-Antwort eingeloggt.' : 'Noch keine Antwort eingeloggt.';
+        }
+
+        compose.classList.toggle('hidden', submitted || revealed);
+        $('playerAnswerInput').disabled = submitted || revealed;
+        $('playerAnswerSubmit').disabled = submitted || revealed;
+        $('playerAnswerSubmit').textContent = team ? 'Team-Antwort einloggen' : 'Antwort einloggen';
+        return;
+      }
+
+      const enabled=playerChatChannel==='host'?settings.privateEnabled:(settings.teamEnabled&&!!playerChatState.teamId);
+      const disabled=$('playerChatDisabled');
+      disabled.classList.toggle('hidden',enabled);
+      if(!enabled) {
+        disabled.textContent=playerChatChannel==='host'
+          ? 'Der Privatchat wurde vom Host gesperrt.'
+          : (!playerChatState.teamId?'Du bist aktuell keinem Team zugeordnet.':'Der Teamchat wurde vom Host gesperrt.');
+      }
+
+      $('playerChatInput').disabled=!enabled;
+      $('playerChatSend').disabled=!enabled; $('playerChatImage').disabled=!enabled;
+      $('playerChatInput').placeholder='Nachricht schreiben …';
+
+      const items=playerChatChannel==='host'?(playerChatState.private||[]):(playerChatState.team||[]);
+      const log=$('playerChatLog');
+      // Wichtig: Nicht bei jedem Server-State wieder nach unten zwingen. Genau das
+      // hat bisher verhindert, dass Spieler im Privat-/Teamchat hochscrollen konnten.
+      const distanceFromBottom = log.scrollHeight - log.scrollTop - log.clientHeight;
+      const wasNearBottom = distanceFromBottom < 48;
+      const previousScrollTop = log.scrollTop;
+      log.innerHTML=items.length?items.map(x=>chatLineHtml(x,x.senderId===socket.id)).join(''):'<div class="small">Noch keine Nachrichten.</div>';
+      if(channelChanged || wasNearBottom) log.scrollTop=log.scrollHeight;
+      else log.scrollTop=previousScrollTop;
+    }
+
+    function sendChatSettings(){
+      socket.emit('host-chat-settings',{privateEnabled:$('privateChatEnabled').checked,teamEnabled:$('teamChatEnabled').checked});
+    }
+
+    function hostChannelKey(type,id){ return `${type}:${id}`; }
+    function chooseHostChat(type,id){ hostChatSelection={type,id}; hostChatUnread[hostChannelKey(type,id)]=0; renderHostChat(); }
+    window.chooseHostChat=chooseHostChat;
+
+    function sendHostChatMessage(){
+      const input=$('hostChatInput'); const message=input.value.trim(); if(!message||!hostChatSelection.id)return;
+      socket.emit('host-chat-send',{channelType:hostChatSelection.type,targetId:hostChatSelection.id,message}); input.value='';
+    }
+
+    function renderHostChat(){
+      if(role!=='host')return;
+      const settings=hostChatState.settings||{privateEnabled:true,teamEnabled:true};
+      $('privateChatEnabled').checked=!!settings.privateEnabled; $('teamChatEnabled').checked=!!settings.teamEnabled;
+      const channels=[];
+      state.players.forEach(p=>channels.push({type:'private',id:p.id,label:`Privat · ${p.name}`,color:teamColorFor(p.teamId)}));
+      state.teams.forEach(t=>channels.push({type:'team',id:t.id,label:`Team · ${t.name}`,color:t.color}));
+      if(!hostChatSelection.id && channels[0])hostChatSelection={type:channels[0].type,id:channels[0].id};
+      if(hostChatSelection.id && !channels.some(c=>c.type===hostChatSelection.type&&c.id===hostChatSelection.id)) hostChatSelection=channels[0]?{type:channels[0].type,id:channels[0].id}:{type:'private',id:''};
+      $('hostChatChannels').innerHTML=channels.length?channels.map(c=>{const key=hostChannelKey(c.type,c.id),u=hostChatUnread[key]||0;return `<button class="host-chat-channel ${hostChatSelection.type===c.type&&hostChatSelection.id===c.id?'active':''}" style="border-left:4px solid ${escapeAttribute(c.color||'#777')}" onclick="chooseHostChat('${jsSafe(c.type)}','${jsSafe(c.id)}')">${escapeHtml(c.label)}${u?` <span class="chat-badge">${u}</span>`:''}</button>`}).join(''):'<div class="small">Noch keine Spieler/Teams.</div>';
+      const selected=channels.find(c=>c.type===hostChatSelection.type&&c.id===hostChatSelection.id);
+      $('hostChatTitle').textContent=selected?.label||'Chat auswählen';
+      const messages=(hostChatState.messages||[]).filter(m=>hostChatSelection.type==='private'?(m.scope==='private'&&m.playerId===hostChatSelection.id):(m.scope==='team'&&m.teamId===hostChatSelection.id));
+      const log=$('hostChatLog'); const hostDist=log.scrollHeight-log.scrollTop-log.clientHeight; const hostNearBottom=hostDist<48; const hostPrevTop=log.scrollTop; log.innerHTML=messages.length?messages.map(m=>chatLineHtml(m,m.senderType==='host')).join(''):'<div class="small">Noch keine Nachrichten.</div>'; if(hostNearBottom) log.scrollTop=log.scrollHeight; else log.scrollTop=hostPrevTop;
+      const enabled=hostChatSelection.type==='private'?settings.privateEnabled:settings.teamEnabled;
+      $('hostChatInput').disabled=!hostChatSelection.id||!enabled; $('hostChatSend').disabled=!hostChatSelection.id||!enabled; $('hostChatImage').disabled=!hostChatSelection.id||!enabled; $('clearHostChat').disabled=!hostChatSelection.id;
+      $('hostChatStatus').textContent=!enabled?'Dieser Chattyp ist derzeit gesperrt.':'Privat- und Teamchats sind getrennt.';
+    }
+
+
+    function renderHostAnswers() {
+      if (role !== 'host') return;
+      const entries = hostAnswerState.entries || [];
+      const submitted = Number(hostAnswerState.submittedCount || 0);
+      const total = Number(hostAnswerState.totalCount || entries.length || 0);
+      const revealed = !!hostAnswerState.revealed;
+
+      $('hostAnswersCounter').textContent = `${submitted} / ${total} eingeloggt${revealed ? ' · aufgedeckt' : ''}`;
+      $('revealAnswers').disabled = !submitted || revealed;
+      $('resetAnswers').disabled = !submitted && !revealed;
+
+      const list = $('hostAnswersList');
+      if (!entries.length) {
+        list.innerHTML = '<div class="small">Noch keine Spieler oder Teams.</div>';
+        return;
+      }
+
+      list.innerHTML = entries.map(entry => {
+        let value = '<span class="host-answer-pending">Noch keine Antwort.</span>';
+        if (entry.submitted && !revealed) {
+          value = '<span class="answer-value">Antwort eingeloggt ✓</span>';
+        } else if (entry.submitted && revealed) {
+          value = `<span class="answer-value">${escapeHtml(entry.answer || '')}</span>`;
+        }
+        const by = entry.submittedBy ? `<div class="small">Eingeloggt von ${escapeHtml(entry.submittedBy)}</div>` : '';
+        return `<div class="host-answer-row" style="border-left-color:${escapeAttribute(entry.color || '#777')}">
+          <div><strong>${escapeHtml(entry.label || '')}</strong>${by}</div>
+          <div>${value}</div>
+        </div>`;
+      }).join('');
+    }
+
+
+    function renderHostBugReports() {
+      if(role!=='host') return;
+      const list=$('hostBugReports');
+      const reports=hostBugReports||[];
+      const open=reports.filter(r=>!r.resolved).length;
+      $('bugReportCount').textContent=open;
+      if(!reports.length){ list.innerHTML='<div class="small">Noch keine Bug-Reports.</div>'; return; }
+      list.innerHTML=reports.map(r=>{
+        const team=r.teamName?` · ${escapeHtml(r.teamName)}`:'';
+        const meta=`${new Date(r.createdAt).toLocaleString('de-DE')} · ${escapeHtml(r.area||'Sonstiges')}`;
+        return `<div class="bug-report-row ${r.resolved?'resolved':''}">
+          <strong>${escapeHtml(r.playerName||'Unbekannt')}${team}</strong>
+          <div class="bug-report-meta"><span>${meta}</span></div>
+          <div class="bug-report-text">${escapeHtml(r.message||'')}</div>
+          <div class="bug-report-actions">
+            <button class="small-button" type="button" onclick="toggleBugResolved('${jsSafe(r.id)}',${r.resolved?'false':'true'})">${r.resolved?'Wieder öffnen':'Als erledigt markieren'}</button>
+            <button class="host-reset" type="button" onclick="deleteBugReport('${jsSafe(r.id)}')">Löschen</button>
+          </div>
+        </div>`;
+      }).join('');
+    }
+    window.toggleBugResolved=(id,resolved)=>socket.emit('host-bug-report-resolve',{id,resolved});
+    window.deleteBugReport=(id)=>{ if(confirm('Diesen Bug-Report wirklich löschen?')) socket.emit('host-bug-report-delete',{id}); };
+
+    function renderPlayerMessages() {
+      const box = $('playerMessages');
+      if (!box) return;
+      box.innerHTML = playerMessages.map(item => `
+        <div class="message-box">
+          <strong>💬 Nachricht vom Host</strong>
+          <div class="message-text">${escapeHtml(item.message)}</div>
+          <div class="message-meta">${new Date(item.sentAt || Date.now()).toLocaleTimeString('de-DE', {hour:'2-digit', minute:'2-digit', second:'2-digit'})}</div>
+        </div>`).join('');
+    }
+
+    function renderMessageTargets() {
+      const box = $('messageTargets');
+      if (!box) return;
+      const checkedPlayers = new Set([...box.querySelectorAll('input[data-message-player]:checked')].map(el => el.dataset.messagePlayer));
+      const checkedTeams = new Set([...box.querySelectorAll('input[data-message-team]:checked')].map(el => el.dataset.messageTeam));
+      const teamItems = state.teams.map(team => `
+        <label class="message-target" style="color:${escapeAttribute(team.color)}">
+          <input type="checkbox" data-message-team="${escapeAttribute(team.id)}" ${checkedTeams.has(team.id) ? 'checked' : ''}>
+          <span class="target-inline"><strong>${escapeHtml(team.name)}</strong><span class="small">Ganzes Team</span></span>
+        </label>`).join('');
+      const playerItems = state.players.map(player => `
+        <label class="message-target" style="color:${escapeAttribute(teamColorFor(player.teamId))}">
+          <input type="checkbox" data-message-player="${escapeAttribute(player.id)}" ${checkedPlayers.has(player.id) ? 'checked' : ''}>
+          <span class="target-inline"><strong>${escapeHtml(player.name)}</strong><span class="small">${player.teamId ? escapeHtml(teamNameFor(player.teamId)) : 'Kein Team'}</span></span>
+        </label>`).join('');
+      box.innerHTML = `<div style="grid-column:1/-1" class="small"><strong>Teams</strong></div>${teamItems || '<div class="small">Keine Teams</div>'}<div style="grid-column:1/-1" class="small"><strong>Spieler</strong></div>${playerItems || '<div class="small">Keine Spieler verbunden</div>'}`;
+    }
+
+    function seconds(ms) {
+      return `${(ms / 1000).toFixed(3)} s`;
+    }
+
+
+    function initials(name) {
+      return String(name || '?').trim().split(/\s+/).slice(0,2).map(x => x[0] || '').join('').toUpperCase().slice(0,2) || '?';
+    }
+
+    function avatarMarkup(player, team) {
+      const color = team?.color || '#777777';
+      if (player?.avatar) return `<img class="tribune-avatar" style="--team-color:${escapeAttribute(color)}" src="${escapeAttribute(player.avatar)}" alt="Avatar von ${escapeAttribute(player.name)}">`;
+      return `<div class="tribune-avatar" style="--team-color:${escapeAttribute(color)}">${escapeHtml(initials(player?.name))}</div>`;
+    }
+
+    function buildTribune() {
+      const visible = state.players.filter(p => p.tribuneVisible !== false);
+      const groups = state.teams.map(team => ({ team, players: visible.filter(p => p.teamId === team.id) }));
+      const noTeam = visible.filter(p => !p.teamId);
+      if (noTeam.length) groups.push({ team: { id:'', name:'Ohne Team', color:'#9aa4b6', score:noTeam.reduce((a,p)=>a+(Number(p.score)||0),0) }, players:noTeam });
+      return groups.filter(g => g.players.length).map(({team,players}) => `<div class="tribune-team" style="--team-color:${escapeAttribute(team.color || '#777777')}"><div class="tribune-team-head"><strong>${escapeHtml(team.name)}</strong><span>${formatNumber(team.score)} Punkte</span></div><div class="tribune-rows"><div class="tribune-players">${players.map(p => `<div class="tribune-player">${avatarMarkup(p,team)}<div class="tribune-player-name" title="${escapeAttribute(p.name)}">${escapeHtml(p.name)}</div><div class="tribune-score">${formatNumber(p.score)} P.</div></div>`).join('')}</div></div></div>`).join('') || '<div class="small">Noch keine sichtbaren Spieler auf der Tribüne.</div>';
+    }
+
+    function answerTimerRemaining() {
+      if (!state.answerTimerEnabled || !state.answerTimerStartedAt) return null;
+      return Math.max(0, Number(state.answerTimerRemainingMs || 0) - (performance.now() - timerStateReceivedAt));
+    }
+
+    async function uploadAvatar(id, input) {
+      const file = input.files?.[0]; if (!file) return;
+      if (!file.type.startsWith('image/')) { alert('Bitte eine Bilddatei auswählen.'); input.value=''; return; }
+      const reader = new FileReader();
+      reader.onload = () => {
+        const img = new Image();
+        img.onload = () => {
+          const size=160, canvas=document.createElement('canvas'); canvas.width=size; canvas.height=size;
+          const ctx=canvas.getContext('2d');
+          const scale=Math.max(size/img.width,size/img.height), w=img.width*scale, h=img.height*scale;
+          ctx.drawImage(img,(size-w)/2,(size-h)/2,w,h);
+          socket.emit('host-set-player-avatar',{id,dataUrl:canvas.toDataURL('image/jpeg',.82)});
+          input.value='';
+        };
+        img.src=reader.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function clearAvatar(id) { socket.emit('host-set-player-avatar',{id,dataUrl:''}); }
+    function setTribuneVisible(id, visible) { socket.emit('host-set-player-tribune-visible',{id,visible}); }
+
+
+    function currentBuzzerTexts() {
+      const t = state.buzzerTexts || {};
+      return {
+        active: String(t.active || 'AKTIV'),
+        inactive: String(t.inactive || 'INAKTIV'),
+        locked: String(t.locked || 'LOCKED')
+      };
+    }
+
+    function updateBuzzerStateLabel() {
+      const label = $('buzzerStateLabel');
+      const buzzer = $('buzzer');
+      if (!label || !buzzer) return;
+
+      const me = (state.players || []).find(p => p.id === socket.id);
+      const myTeam = me && state.teams ? state.teams.find(t => t.id === me.teamId) : null;
+      const texts = currentBuzzerTexts();
+
+      const explicitlyLocked =
+        !!state.globalBuzzerLocked ||
+        !!(me && me.buzzerLocked) ||
+        !!(myTeam && myTeam.buzzerLocked);
+
+      if (explicitlyLocked) label.textContent = texts.locked;
+      else if (state.roundOpen && !buzzer.disabled) label.textContent = texts.active;
+      else label.textContent = texts.inactive;
+    }
+
+    function render() {
+      const myBuzz = state.buzzes.find(b => b.socketId === socket.id);
+      const me = state.players.find(p => p.id === socket.id);
+
+      if (role === 'player') {
+        renderPlayerMessages();
+        renderPlayerChat();
+        if (me && me.name !== playerName) {
+          playerName = me.name;
+          $('helloPlayer').textContent = `Spieler: ${me.name}`;
+        }
+
+        const buzzer = $('buzzer');
+        const status = $('playerStatus');
+        const myTeam = teamFor(me?.teamId);
+        const scoreSummary = $('playerScoreSummary');
+        if (scoreSummary) {
+          scoreSummary.textContent = me ? playerSummary(me) : 'Punkte: 0';
+          scoreSummary.style.borderColor = myTeam?.color || '';
+          scoreSummary.style.color = myTeam?.color || '';
+        }
+        $('helloPlayer').textContent = me ? `Spieler: ${me.name}${myTeam ? ` · ${myTeam.name}` : ''}` : `Spieler: ${playerName}`;
+        $('helloPlayer').style.color = myTeam?.color || '';
+        $('helloPlayer').style.borderLeftColor = myTeam?.color || 'currentColor';
+        const gameInfoBox = $('playerGameInfo');
+        const hasGameInfo = !!(state.currentGameName || state.currentGameRules);
+        gameInfoBox.classList.toggle('hidden', !hasGameInfo);
+        $('playerGameName').textContent = state.currentGameName || 'Aktuelles Spiel';
+        $('playerGameRules').textContent = state.currentGameRules || '';
+        const timerBox=$('playerAnswerTimer'), timerRemaining=answerTimerRemaining();
+        const answeringPlayer=state.players.find(p=>p.id===state.answerTimerBuzzSocketId);
+        const showTimer=state.answerTimerEnabled && timerRemaining !== null;
+        timerBox.classList.toggle('hidden', !showTimer);
+        if(showTimer){ const sec=Math.max(0,timerRemaining/1000); $('playerAnswerTimerValue').textContent=`${sec.toFixed(1)} s`; $('playerAnsweringName').textContent=answeringPlayer ? `· ${answeringPlayer.name}` : ''; timerBox.classList.toggle('warning',sec<=3&&sec>1); timerBox.classList.toggle('danger',sec<=1); }
+        const playerTribune=$('playerTribune'); playerTribune.classList.toggle('hidden', !state.showPlayerTribune); if(state.showPlayerTribune) $('playerTribuneContent').innerHTML=buildTribune();
+        const detailsBox = $('playerBuzzDetails');
+        detailsBox.classList.toggle('hidden', !state.showPlayerBuzzDetails);
+        if (state.showPlayerBuzzDetails) {
+          const firstBuzz = state.buzzes[0]?.timeMs ?? 0;
+          $('playerBuzzTable').innerHTML = state.buzzes.length ? state.buzzes.map((b, i) => `<tr><td class="${i===0?'winner':''}">${i+1}</td><td style="color:${escapeAttribute(teamColorFor(b.teamId))};font-weight:800">${escapeHtml(b.name)}${teamNameFor(b.teamId) ? ` <span>(${escapeHtml(teamNameFor(b.teamId))})</span>` : ''}</td><td>${seconds(b.timeMs)}</td><td>${i===0?'—':'+'+seconds(b.timeMs-firstBuzz)}</td></tr>`).join('') : '<tr><td colspan="4" class="small">Noch niemand hat gebuzzert.</td></tr>';
+        }
+        const earlyBuzz = state.earlyBuzzes.find(b => b.socketId === socket.id);
+        const remainingMs = playerLockRemaining(me);
+        const manualLock = me && isBuzzerManuallyLocked(me);
+        const hostGlobalLock = !!state.globalBuzzerLocked;
+        if (hostGlobalLock) {
+          buzzer.disabled = true;
+          status.textContent = 'Buzzer wurde vom Host gesperrt';
+          status.className = 'status closed';
+          $('playerResult').textContent = '';
+        } else if (manualLock) {
+          buzzer.disabled = true;
+          status.textContent = me.buzzerLocked ? 'Dein Buzzer wurde vom Host gesperrt' : `Team ${myTeam?.name || ''}: Buzzer gesperrt`;
+          status.className = 'status closed';
+          $('playerResult').textContent = '';
+        } else if (myBuzz) {
+          buzzer.disabled = true;
+          status.textContent = 'Gebuzzert!';
+          status.className = 'status closed';
+          const place = state.buzzes.findIndex(b => b.socketId === socket.id) + 1;
+          $('playerResult').textContent = `Platz ${place} · ${seconds(myBuzz.timeMs)}`;
+        } else if (state.roundOpen && remainingMs > 0) {
+          buzzer.disabled = true;
+          status.textContent = `Zu früh! Noch ${(remainingMs / 1000).toFixed(1)} s gesperrt`;
+          status.className = 'status early';
+          $('playerResult').textContent = '';
+        } else if (state.roundOpen) {
+          buzzer.disabled = buzzPending;
+          status.textContent = buzzPending ? 'Buzz wird gesendet …' : 'Buzzer ist offen!';
+          status.className = 'status open';
+          $('playerResult').textContent = '';
+        } else if (state.roundStart === null) {
+          buzzer.disabled = buzzPending || !!earlyBuzz;
+          status.textContent = earlyBuzz ? 'ZU FRÜH GEBUZZERT!' : 'Warte auf den Host …';
+          status.className = earlyBuzz ? 'status early' : 'status closed';
+          const penaltyText = earlyBuzz && state.earlyBuzzPenaltySeconds > 0 ? ` · Sperre: ${formatNumber(state.earlyBuzzPenaltySeconds)} s` : '';
+          $('playerResult').textContent = penaltyText ? penaltyText.replace(/^ · /,'') : '';
+        } else {
+          buzzer.disabled = true;
+          status.textContent = 'Runde ist gesperrt';
+          status.className = 'status closed';
+          $('playerResult').textContent = '';
+        }
+        if (state.globalBuzzerLocked || manualLock || myBuzz || (state.roundOpen && remainingMs > 0) || (!state.roundOpen && state.roundStart !== null)) {
+          buzzer.disabled = true;
+        } else if (state.roundOpen) {
+          buzzer.disabled = !!buzzPending;
+        }
+        updateBuzzerStateLabel();
+      }
+
+      if (role === 'host') {
+        renderHostChat();
+        $('hostStatus').textContent = state.globalBuzzerLocked
+          ? 'Buzzer sind gesperrt'
+          : (state.roundOpen ? 'Runde läuft – Buzzer offen' : 'Buzzer sind inaktiv');
+        $('hostStatus').className = state.roundOpen && !state.globalBuzzerLocked ? 'status open' : 'status closed';
+        $('playerCount').textContent = state.players.length;
+        $('pointValue').value = state.pointValue;
+        $('pointValueSaved').textContent = `Gespeichert: ${formatNumber(state.pointValue)} Punkte`;
+        $('earlyPenalty').value = state.earlyBuzzPenaltySeconds;
+        $('earlyPenaltySaved').textContent = `Gespeichert: ${formatNumber(state.earlyBuzzPenaltySeconds)} Sekunden`;
+        $('showPlayerBuzzDetails').checked = !!state.showPlayerBuzzDetails;
+        $('playerDisplaySaved').textContent = state.showPlayerBuzzDetails ? 'Aktuell: eingeblendet' : 'Aktuell: ausgeblendet';
+        $('answerTimerEnabled').checked = !!state.answerTimerEnabled;
+        if(document.activeElement !== $('answerTimerSeconds')) $('answerTimerSeconds').value = state.answerTimerSeconds;
+        $('showPlayerTribune').checked = !!state.showPlayerTribune;
+        const bt = state.buzzerTexts || {active:'AKTIV',inactive:'INAKTIV',locked:'LOCKED'};
+        if(document.activeElement !== $('buzzerTextActive')) $('buzzerTextActive').value = bt.active;
+        if(document.activeElement !== $('buzzerTextInactive')) $('buzzerTextInactive').value = bt.inactive;
+        if(document.activeElement !== $('buzzerTextLocked')) $('buzzerTextLocked').value = bt.locked;
+        $('buzzerTextsSaved').textContent = `Aktiv: ${bt.active} · Inaktiv: ${bt.inactive} · Gesperrt: ${bt.locked}`;
+        if(role==='host') saveBuzzerTextBackup(bt);
+
+        const hostTimerRemaining=answerTimerRemaining(); const answering=state.players.find(p=>p.id===state.answerTimerBuzzSocketId);
+        if(!state.answerTimerEnabled){ $('answerTimerValue').textContent='Aus'; $('answerTimerWho').textContent='Antworttimer ist deaktiviert.'; } else if(hostTimerRemaining===null){ $('answerTimerValue').textContent='Bereit'; $('answerTimerWho').textContent='Startet beim ersten Buzz.'; } else { const sec=Math.max(0,hostTimerRemaining/1000); $('answerTimerValue').textContent=`${sec.toFixed(1)} s`; $('answerTimerWho').textContent=answering ? `${answering.name} antwortet` : 'Antwort läuft'; }
+        $('hostTribune').innerHTML = buildTribune();
+        if (document.activeElement !== $('currentGameName')) $('currentGameName').value = state.currentGameName || '';
+        if (document.activeElement !== $('currentGameRules')) $('currentGameRules').value = state.currentGameRules || '';
+
+        $('teamBoard').innerHTML = state.teams.length ? state.teams.map(team => {
+          const members = state.players.filter(p => p.teamId === team.id).map(p => p.name);
+          return `<div class="team-card" style="--team-color:${escapeAttribute(team.color || '#777777')}" draggable="true" data-team-id="${escapeAttribute(team.id)}">
+            <div class="team-card-head"><div class="player-actions"><span class="team-dot"></span><strong class="team-colored">${escapeHtml(team.name)}</strong></div><span class="small">${members.length} Spieler</span></div>
+            <div class="team-score-big">${formatNumber(team.score)} Punkte</div>
+            <div class="team-members">${members.length ? members.map(name => `<span class="team-colored">${escapeHtml(name)}</span>`).join(' · ') : 'Noch keine Mitglieder'}</div>
+          </div>`;
+        }).join('') : '<div class="small">Noch keine Teams angelegt.</div>';
+        bindTeamDrag();
+
+        $('teamPointsControls').innerHTML = state.teams.length ? state.teams.map(team => `
+          <div class="points-panel" style="justify-content:space-between;gap:10px;flex-wrap:wrap">
+            <strong class="team-colored" style="--team-color:${escapeAttribute(team.color || '#777777')};min-width:120px">${escapeHtml(team.name)}</strong>
+            <span class="score">${formatNumber(team.score)} P.</span>
+            <div class="player-actions">
+              <button class="small-button score-button" onclick="changeTeamScore('${jsSafe(team.id)}', 1)">+${formatNumber(state.pointValue)}</button>
+              <button class="small-button score-button" onclick="changeTeamScore('${jsSafe(team.id)}', -1)">−${formatNumber(state.pointValue)}</button>
+              <input class="inline-input" id="team-score-${cssSafe(team.id)}" type="number" step="1" value="${team.score}" style="width:90px">
+              <button class="small-button" onclick="setTeamScore('${jsSafe(team.id)}')">Setzen</button>
+            </div>
+          </div>`).join('') : '<div class="small">Noch keine Teams angelegt.</div>';
+
+
+        $('teamTable').innerHTML = state.teams.length
+          ? state.teams.map(team => {
+              const members = state.players.filter(p => p.teamId === team.id).map(p => p.name);
+              return `
+                <tr>
+                  <td>
+                    <div class="player-actions">
+                      <span class="team-colored" style="--team-color:${escapeAttribute(team.color || '#777777')}">${escapeHtml(team.name)}</span><input class="name-input" id="team-name-${cssSafe(team.id)}" value="${escapeAttribute(team.name)}" maxlength="30">
+                      <button class="small-button" onclick="renameTeam('${jsSafe(team.id)}')">Speichern</button>
+                      <input type="color" value="${escapeAttribute(team.color || '#777777')}" onchange="setTeamColor('${jsSafe(team.id)}', this.value)" title="Teamfarbe">
+                      <button class="small-button" onclick="moveTeam('${jsSafe(team.id)}',-1)">↑</button>
+                      <button class="small-button" onclick="moveTeam('${jsSafe(team.id)}',1)">↓</button>
+                    </div>
+                  </td>
+                  <td style="--team-color:${escapeAttribute(team.color || '#777777')}">${members.length ? members.map(name => `<span class="team-colored">${escapeHtml(name)}</span>`).join(', ') : '<span class="small">Noch niemand</span>'}</td>
+                  <td><button class="small-button ${team.buzzerLocked ? 'lock-on' : 'lock-off'}" onclick="setTeamBuzzerLock('${jsSafe(team.id)}', ${team.buzzerLocked ? 'false' : 'true'})">${team.buzzerLocked ? '🔒 Gesperrt' : '🔓 Offen'}</button></td>
+                  <td><button class="small-button host-reset" onclick="deleteTeam('${jsSafe(team.id)}')">Löschen</button></td>
+                </tr>`;
+            }).join('')
+          : '<tr><td colspan="4" class="small">Noch keine Teams angelegt.</td></tr>';
+
+        $('playerTable').innerHTML = state.players.length
+          ? state.players.map(p => `
+            <tr>
+              <td>
+                <div class="player-actions">
+                  <span class="team-colored" style="--team-color:${escapeAttribute(teamColorFor(p.teamId))}">${escapeHtml(p.name)}</span><input class="name-input" style="color:${escapeAttribute(teamColorFor(p.teamId))}" id="name-${cssSafe(p.id)}" value="${escapeAttribute(p.name)}" maxlength="30">
+                  <button class="small-button" onclick="renamePlayer('${jsSafe(p.id)}')">Name speichern</button>
+                </div>
+              </td>
+              <td>
+                <select class="inline-input" style="width:150px" onchange="setPlayerTeam('${jsSafe(p.id)}', this.value)">
+                  <option value="">Kein Team</option>
+                  ${state.teams.map(team => `<option value="${escapeAttribute(team.id)}" ${p.teamId === team.id ? 'selected' : ''}>${escapeHtml(team.name)}</option>`).join('')}
+                </select>
+              </td>
+              <td class="score">${formatNumber(p.score)}</td>
+              <td>
+                <div class="player-actions">
+                  <button class="small-button score-button" onclick="changeScore('${jsSafe(p.id)}', 1)">+${formatNumber(state.pointValue)}</button>
+                  <button class="small-button score-button" onclick="changeScore('${jsSafe(p.id)}', -1)">−${formatNumber(state.pointValue)}</button>
+                </div>
+              </td>
+              <td>
+                <div class="player-actions">
+                  <input class="inline-input" id="score-${cssSafe(p.id)}" type="number" step="1" value="${p.score}">
+                  <button class="small-button" onclick="setScore('${jsSafe(p.id)}')">Setzen</button>
+                </div>
+              </td>
+              <td><div class="avatar-controls"><label class="small-button" style="cursor:pointer">${p.avatar ? '🖼️ Avatar ändern' : '🖼️ Avatar'}<input class="hidden" type="file" accept="image/*" onchange="uploadAvatar('${jsSafe(p.id)}', this)"></label>${p.avatar ? `<button class="small-button" onclick="clearAvatar('${jsSafe(p.id)}')">Entfernen</button>` : ''}<button class="small-button ${p.tribuneVisible === false ? 'lock-on' : 'lock-off'}" onclick="setTribuneVisible('${jsSafe(p.id)}', ${p.tribuneVisible === false ? 'true' : 'false'})">${p.tribuneVisible === false ? '🙈 Ausgeblendet' : '👁️ Sichtbar'}</button></div></td>
+              <td><button class="small-button ${p.buzzerLocked ? 'lock-on' : 'lock-off'}" onclick="setPlayerBuzzerLock('${jsSafe(p.id)}', ${p.buzzerLocked ? 'false' : 'true'})">${p.buzzerLocked ? '🔒 Gesperrt' : '🔓 Offen'}</button></td>
+              <td><button class="small-button kick-button" onclick="kickPlayer('${jsSafe(p.id)}','${jsSafe(p.name)}')">🚪 Kicken</button></td>
+            </tr>`).join('')
+          : '<tr><td colspan="8" class="small">Noch niemand verbunden.</td></tr>';
+
+        $('earlyBuzzTable').innerHTML = state.earlyBuzzes.length
+          ? state.earlyBuzzes.map(b => {
+              const player = state.players.find(p => p.id === b.socketId);
+              const remaining = playerLockRemaining(player);
+              const statusText = remaining > 0
+                ? `ZU FRÜH · noch ${(remaining / 1000).toFixed(1)} s gesperrt`
+                : (state.earlyBuzzPenaltySeconds > 0 ? 'ZU FRÜH · Sperre abgelaufen' : 'ZU FRÜH');
+              const teamName = teamNameFor(b.teamId);
+              const color = teamColorFor(b.teamId);
+              return `<tr><td style="color:${escapeAttribute(color)};font-weight:800">${escapeHtml(b.name)}${teamName ? ` <span style="color:${escapeAttribute(color)}">(${escapeHtml(teamName)})</span>` : ''}</td><td class="early"><strong>${statusText}</strong></td></tr>`;
+            }).join('')
+          : '<tr><td colspan="2" class="small">Noch kein Frühstart.</td></tr>';
+
+        const first = state.buzzes[0]?.timeMs ?? 0;
+        $('buzzTable').innerHTML = state.buzzes.length
+          ? state.buzzes.map((b, i) => `
+            <tr>
+              <td class="${i === 0 ? 'winner' : ''}">${i + 1}</td>
+              <td style="color:${escapeAttribute(teamColorFor(b.teamId))};font-weight:800">${escapeHtml(b.name)}${teamNameFor(b.teamId) ? ` <span style="color:${escapeAttribute(teamColorFor(b.teamId))}">(${escapeHtml(teamNameFor(b.teamId))})</span>` : ''}</td>
+              <td>${seconds(b.timeMs)}</td>
+              <td>${i === 0 ? '—' : '+' + seconds(b.timeMs - first)}</td>
+            </tr>`).join('')
+          : '<tr><td colspan="4" class="small">Noch niemand hat gebuzzert.</td></tr>';
+      }
+    }
+
+    function renamePlayer(id) {
+      const input = document.getElementById(`name-${cssSafe(id)}`);
+      if (input) socket.emit('host-rename-player', { id, name: input.value });
+    }
+
+    function changeScore(id, direction) {
+      socket.emit('host-change-score', { id, direction });
+    }
+
+    function setScore(id) {
+      const input = document.getElementById(`score-${cssSafe(id)}`);
+      if (input) socket.emit('host-set-score', { id, score: input.value });
+    }
+
+
+    function changeTeamScore(id, direction) {
+      socket.emit('host-change-team-score', { id, direction });
+    }
+
+    function setTeamScore(id) {
+      const input = document.getElementById(`team-score-${cssSafe(id)}`);
+      if (input) socket.emit('host-set-team-score', { id, score: input.value });
+    }
+
+    function setPlayerTeam(id, teamId) {
+      socket.emit('host-set-player-team', { id, teamId });
+    }
+
+    function renameTeam(id) {
+      const input = document.getElementById(`team-name-${cssSafe(id)}`);
+      if (input) socket.emit('host-rename-team', { id, name: input.value });
+    }
+
+    function deleteTeam(id) {
+      if (confirm('Team wirklich löschen? Die Spieler bleiben verbunden und werden nur aus dem Team entfernt.')) {
+        socket.emit('host-delete-team', id);
+      }
+    }
+
+
+    function setTeamColor(id, color) { socket.emit('host-set-team-color', { id, color }); }
+    function moveTeam(id, direction) { socket.emit('host-move-team', { id, direction }); }
+    function bindTeamDrag() {
+      document.querySelectorAll('#teamBoard .team-card').forEach(card => {
+        card.addEventListener('dragstart', () => { draggedTeamId = card.dataset.teamId; card.classList.add('dragging'); });
+        card.addEventListener('dragend', () => { draggedTeamId = null; card.classList.remove('dragging'); });
+        card.addEventListener('dragover', e => { e.preventDefault(); });
+        card.addEventListener('drop', e => {
+          e.preventDefault();
+          if (!draggedTeamId || draggedTeamId === card.dataset.teamId) return;
+          socket.emit('host-reorder-team', { id: draggedTeamId, beforeId: card.dataset.teamId });
+        });
+      });
+      const board = $('teamBoard');
+      board.ondragover = e => { e.preventDefault(); };
+      board.ondrop = e => {
+        if (e.target === board && draggedTeamId) {
+          e.preventDefault(); socket.emit('host-reorder-team', { id: draggedTeamId, beforeId: '' });
+        }
+      };
+    }
+
+    function setPlayerBuzzerLock(id, locked) { socket.emit('host-set-player-buzzer-lock', { id, locked }); }
+    function setTeamBuzzerLock(id, locked) { socket.emit('host-set-team-buzzer-lock', { id, locked }); }
+    function kickPlayer(id, name) { if(confirm(`Spieler „${name}“ wirklich kicken?`)) socket.emit('host-kick-player', { id }); }
+
+    function teamFor(teamId) { return state.teams.find(team => team.id === teamId) || null; }
+    function teamNameFor(teamId) { return teamFor(teamId)?.name || ''; }
+    function teamColorFor(teamId) { return teamFor(teamId)?.color || '#f7f7fb'; }
+    function isBuzzerManuallyLocked(player) {
+      if (!player) return false;
+      return !!player.buzzerLocked || !!teamFor(player.teamId)?.buzzerLocked;
+    }
+    function playerLockRemaining(player) {
+      if (!player) return 0;
+      const base = Math.max(0, Number(player.lockRemainingMs) || 0);
+      return Math.max(0, base - (performance.now() - stateReceivedAt));
+    }
+
+    function playerSummary(player) {
+      const team = teamFor(player.teamId);
+      return `Punkte: ${formatNumber(player.score)}${team ? ` · ${team.name}: ${formatNumber(team.score)} Teampunkte` : ''}`;
+    }
+
+    function formatNumber(value) {
+      const n = Number(value);
+      return Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100);
+    }
+
+    function escapeHtml(str) {
+      return String(str).replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+    }
+
+    function escapeAttribute(str) {
+      return escapeHtml(str);
+    }
+
+    function cssSafe(str) {
+      return String(str).replace(/[^a-zA-Z0-9_-]/g, '_');
+    }
+
+    // Nur die Spieleransicht regelmäßig aktualisieren (z. B. für den Sperr-Countdown).
+    // Die Host-Ansicht wird ausschließlich bei echten Statusänderungen neu gerendert.
+    // So werden Eingabefelder beim Tippen nicht mehr alle 100 ms zurückgesetzt.
+    setInterval(() => {
+      if (role === 'player') render();
+      if (role === 'host' && state.answerTimerEnabled && state.answerTimerStartedAt) {
+        const remaining=answerTimerRemaining(); if(remaining!==null){ const sec=Math.max(0,remaining/1000), el=$('answerTimerValue'); el.textContent=`${sec.toFixed(1)} s`; el.classList.toggle('warning',sec<=3&&sec>1); el.classList.toggle('danger',sec<=1); }
+      }
+    }, 100);
+
+    function jsSafe(str) {
+      return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+  
+
+    // ===== Video Killed The Audio Star =====
+    const VK_STATE_KEY = 'musiklexVideoKilledStateV1';
+    const VK_COMMAND_KEY = 'musiklexVideoKilledCommandV1';
+    let vkWindow = null;
+    let vkSeq = Date.now();
+    const vkChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('musiklex-video-killed') : null;
+
+    function vkExtractId(url) {
+      url = String(url || '').trim();
+      const patterns = [
+        /(?:youtube\.com\/watch\?v=)([^&\s]+)/,
+        /(?:youtu\.be\/)([^?\s]+)/,
+        /(?:youtube\.com\/shorts\/)([^?\s]+)/,
+        /(?:youtube\.com\/embed\/)([^?\s]+)/
+      ];
+      for (const pattern of patterns) { const m=url.match(pattern); if(m) return m[1]; }
+      return /^[a-zA-Z0-9_-]{11}$/.test(url) ? url : null;
+    }
+
+    function vkSetStatus(text) { const el=$('vkStatus'); if(el) el.textContent=text; }
+    function vkReadState() { try { return JSON.parse(localStorage.getItem(VK_STATE_KEY) || '{}') || {}; } catch { return {}; } }
+    function vkSaveState(patch={}) {
+      const old=vkReadState();
+      const next={...old,...patch,updatedAt:Date.now()};
+      localStorage.setItem(VK_STATE_KEY, JSON.stringify(next));
+      return next;
+    }
+    function vkCurrentFormState() {
+      return {
+        url: $('vkUrl')?.value.trim() || '',
+        videoId: vkExtractId($('vkUrl')?.value || ''),
+        start: Math.max(0, Number($('vkStart')?.value || 0) || 0),
+        title: $('vkTitle')?.value.trim() || '',
+        artist: $('vkArtist')?.value.trim() || '',
+        volume: Math.max(0, Math.min(100, Number($('vkVolume')?.value || 100)))
+      };
+    }
+    function vkSend(type, extra={}) {
+      const payload={seq: ++vkSeq, type, ...extra, sentAt:Date.now()};
+      localStorage.setItem(VK_COMMAND_KEY, JSON.stringify(payload));
+      if(vkChannel) vkChannel.postMessage(payload);
+      return payload;
+    }
+    function vkOpenOutput() {
+      vkSaveState(vkCurrentFormState());
+      vkWindow=window.open('/tools/video-killed-output.html','musiklexVideoKilledOutput','width=1280,height=720,resizable=yes');
+      if(vkWindow) { vkSetStatus('🖥️ Ausgabefenster geöffnet. Steuerung bleibt hier im Host.'); setTimeout(()=>vkSend('sync',{state:vkReadState()}),450); }
+      else vkSetStatus('❌ Popup blockiert. Bitte Popups für diese Seite erlauben.');
+    }
+    function vkLoadVideo() {
+      const st=vkCurrentFormState();
+      if(!st.videoId) return vkSetStatus('❌ Bitte einen gültigen YouTube-Link oder eine Video-ID eingeben.');
+      vkSaveState({...st, muted:true});
+      vkSend('load',{state:{...st,muted:true}});
+      vkSetStatus(`📺 Video geladen · Start ${st.start}s · stumm`);
+    }
+    function vkCommand(type, status) { vkSaveState(vkCurrentFormState()); vkSend(type); vkSetStatus(status); }
+
+    function vkInitPanel() {
+      if(!$('vkOpenWindow')) return;
+      const saved=vkReadState();
+      if(saved.url) $('vkUrl').value=saved.url;
+      if(saved.start!=null) $('vkStart').value=saved.start;
+      if(saved.title!=null) $('vkTitle').value=saved.title;
+      if(saved.artist!=null) $('vkArtist').value=saved.artist;
+      if(saved.volume!=null) { $('vkVolume').value=saved.volume; $('vkVolumeLabel').textContent=`${saved.volume}%`; }
+      $('vkOpenWindow').addEventListener('click',vkOpenOutput);
+      $('vkLoad').addEventListener('click',vkLoadVideo);
+      $('vkRestart').addEventListener('click',()=>{ const st=vkCurrentFormState(); if(!st.videoId) return vkSetStatus('❌ Erst ein Video eintragen.'); vkSaveState({...st,muted:true}); vkSend('restart',{state:{...st,muted:true}}); vkSetStatus('↩️ Video neu gestartet · stumm'); });
+      $('vkPlay').addEventListener('click',()=>vkCommand('play','▶️ Wiedergabe gestartet.'));
+      $('vkPause').addEventListener('click',()=>vkCommand('pause','⏸️ Video pausiert.'));
+      $('vkMute').addEventListener('click',()=>{ vkSaveState({muted:true}); vkSend('mute'); vkSetStatus('🔇 Ton aus · Video läuft an gleicher Stelle weiter.'); });
+      $('vkUnmute').addEventListener('click',()=>{ vkSaveState({muted:false}); vkSend('unmute'); vkSetStatus('🔊 Ton an · Video läuft an gleicher Stelle weiter.'); });
+      $('vkShowAnswer').addEventListener('click',()=>{ const st=vkCurrentFormState(); vkSaveState(st); vkSend('showAnswer',{title:st.title,artist:st.artist}); vkSetStatus('✅ Auflösung eingeblendet.'); });
+      $('vkHideAnswer').addEventListener('click',()=>vkCommand('hideAnswer','🙈 Auflösung ausgeblendet.'));
+      $('vkVolume').addEventListener('input',()=>{ const v=Number($('vkVolume').value); $('vkVolumeLabel').textContent=`${v}%`; vkSaveState({volume:v}); vkSend('volume',{volume:v}); });
+      ['vkUrl','vkStart','vkTitle','vkArtist'].forEach(id=>$(id).addEventListener('change',()=>vkSaveState(vkCurrentFormState())));
+    }
+    window.addEventListener('DOMContentLoaded', vkInitPanel);
+
+
+    // ===== Host-Notizen =====
+    const HOST_NOTES_KEY = 'musiklexHostNotesV1';
+    function initHostNotes() {
+      const area = $('hostNotes');
+      const status = $('hostNotesStatus');
+      const clear = $('clearHostNotes');
+      if (!area) return;
+      area.value = localStorage.getItem(HOST_NOTES_KEY) || '';
+      let timer = null;
+      area.addEventListener('input', () => {
+        if (status) status.textContent = 'Speichert …';
+        clearTimeout(timer);
+        timer = setTimeout(() => {
+          localStorage.setItem(HOST_NOTES_KEY, area.value);
+          if (status) status.textContent = '✓ Automatisch gespeichert';
+        }, 250);
+      });
+      clear?.addEventListener('click', () => {
+        if (!area.value || confirm('Alle Host-Notizen wirklich leeren?')) {
+          area.value = '';
+          localStorage.removeItem(HOST_NOTES_KEY);
+          if (status) status.textContent = 'Notizen geleert';
+        }
+      });
+    }
+    window.addEventListener('DOMContentLoaded', initHostNotes);
+
+    window.addEventListener('resize', () => { const b=$('dashboard'); if(b){ b.querySelectorAll('.dash-card').forEach(clampCard); updateDashboardHeight(); saveDashboardLayout(); } });
+    window.addEventListener('pagehide', () => { if(dashboardInitialized) saveDashboardLayout(); });
+</script>
+</body>
+</html>
