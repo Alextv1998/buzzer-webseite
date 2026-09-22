@@ -943,6 +943,29 @@
           <div id="buzzerTextsSaved" class="small" style="margin-top:8px">Aktiv: AKTIV · Inaktiv: INAKTIV · Gesperrt: LOCKED</div>
         </section>
 
+        <section class="dash-card" data-card="yearafteryear" data-size="large">
+          <div class="dash-head"><h3>📅 Year After Year</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
+          <label class="message-target"><input id="yayEnabled" type="checkbox"><span class="target-stack"><strong>Year After Year aktiv</strong><span class="small">Ein gültiger Buzz friert den Song-Timer automatisch ein.</span></span></label>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px">
+            <label><strong>Korrektes Jahr</strong><input id="yayCorrectYear" type="number" min="1900" max="2100" placeholder="z. B. 2019" style="margin-top:5px"></label>
+            <label><strong>Geratenes Jahr</strong><input id="yayGuessYear" type="number" min="1900" max="2100" placeholder="z. B. 2017" style="margin-top:5px"></label>
+          </div>
+          <div id="yayTimer" class="answer-timer-big" style="margin-top:12px">0,00 s</div>
+          <div id="yayTolerance" style="font-size:1.5rem;font-weight:900;text-align:center;margin:5px 0">EXAKT</div>
+          <div id="yayRange" class="small" style="text-align:center">Korrektes Jahr eintragen.</div>
+          <div id="yayBuzzed" class="status closed" style="margin-top:10px">Bereit für einen neuen Song.</div>
+          <div class="controls" style="margin-top:10px">
+            <button id="yayStart" class="host-start" type="button">▶️ Song starten</button>
+            <button id="yayPause" class="small-button" type="button">⏸️ Pause</button>
+            <button id="yayReset" class="host-reset" type="button">↩️ Neuer Song</button>
+          </div>
+          <div class="controls" style="margin-top:8px">
+            <button id="yayWrong" class="host-close" type="button" disabled>❌ Falsch – weiter</button>
+            <button id="yayCorrect" class="host-start" type="button" disabled>✅ Richtig (+5)</button>
+          </div>
+          <div id="yayCheck" class="small" style="margin-top:8px">0–10 s exakt · danach alle 10 s ±1 Jahr mehr.</div>
+        </section>
+
         <section class="dash-card" data-card="answertimer" data-size="medium">
           <div class="dash-head"><h3>⏱️ Antworttimer</h3><div class="dash-tools"><button class="size-btn" title="Größe ändern">↔</button><span class="drag-handle" title="Verschieben">⠿</span></div></div>
           <label class="message-target"><input id="answerTimerEnabled" type="checkbox"><span class="target-stack"><strong>Antworttimer aktivieren</strong><span class="small">Startet automatisch beim ersten gültigen Buzz.</span></span></label>
@@ -1738,7 +1761,8 @@ $('togglePlayerChat').onclick = () => {
       ['restartAnswerTimer','Antworttimer neu starten'],['nextAnswerTimer','Falsch → nächster Spieler'],['resetAnswerTimer','Antworttimer zurücksetzen'],
       ['revealAnswers','Antworten aufdecken'],['resetAnswers','Antworten zurücksetzen'],
       ['sound:correct','Sound: Richtige Antwort'],['sound:wrong','Sound: Falsche Antwort'],['sound:nextQuestion','Sound: Nächste Fragerunde'],['sound:nextMainRound','Sound: Nächste Hauptrunde'],
-      ['vkPlay','Video: Play'],['vkPause','Video: Pause'],['vkMute','Video: Ton aus'],['vkUnmute','Video: Ton an']
+      ['vkPlay','Video: Play'],['vkPause','Video: Pause'],['vkMute','Video: Ton aus'],['vkUnmute','Video: Ton an'],
+      ['yayStart','Year After Year: Start/Weiter'],['yayPause','Year After Year: Pause'],['yayWrong','Year After Year: Falsch → weiter'],['yayCorrect','Year After Year: Richtig']
     ];
     let hotkeyConfig={enabled:true,ignoreInputs:true,keys:{}}; let hotkeyLearning=null;
     try{const v=JSON.parse(localStorage.getItem(HOTKEY_STORAGE)||'null');if(v)hotkeyConfig={...hotkeyConfig,...v,keys:{...hotkeyConfig.keys,...(v.keys||{})}}}catch(_){ }
@@ -1780,6 +1804,66 @@ $('togglePlayerChat').onclick = () => {
       const sig=keySignature(e);const hit=hotkeyActions.find(([id])=>{const c=hotkeyConfig.keys[id];return c&&c.enabled!==false&&c.key===sig});if(hit){e.preventDefault();triggerHotkeyAction(hit[0])}
     });
     renderHotkeys();
+
+    // Year After Year – gekoppelt an den bestehenden Buzzer.
+    let yayRunning=false, yayElapsedMs=0, yayStartedPerf=0, yayCurrentBuzz=null, yayRaf=0;
+    function yayElapsed(){return yayElapsedMs+(yayRunning?(performance.now()-yayStartedPerf):0)}
+    function yayTol(ms=yayElapsed()) { return Math.max(0, Math.floor(ms/10000)); }
+    function yayRender(){
+      const ms=yayElapsed(), tol=yayTol(ms), sec=ms/1000;
+      $('yayTimer').textContent=sec.toFixed(2).replace('.',',')+' s';
+      $('yayTolerance').textContent=tol===0?'EXAKT':'±'+tol+' JAHR'+(tol===1?'':'E');
+      const cy=Number($('yayCorrectYear').value);
+      $('yayRange').textContent=Number.isFinite(cy)&&cy>0?(tol===0?`Gültig: ${cy}`:`Gültig: ${cy-tol}–${cy+tol}`):'Korrektes Jahr eintragen.';
+      if(yayRunning) yayRaf=requestAnimationFrame(yayRender);
+    }
+    function yayStart(){
+      if(!$('yayEnabled').checked)return;
+      if(yayRunning)return;
+      yayCurrentBuzz=null;$('yayWrong').disabled=true;$('yayCorrect').disabled=true;
+      yayStartedPerf=performance.now();yayRunning=true;
+      $('yayBuzzed').textContent='🟢 Song läuft – Buzzer aktiv';$('yayBuzzed').className='status open';
+      socket.emit('host-start');cancelAnimationFrame(yayRaf);yayRender();
+    }
+    function yayPause(label='⏸️ Pausiert'){
+      if(yayRunning){yayElapsedMs=yayElapsed();yayRunning=false;cancelAnimationFrame(yayRaf)}
+      $('yayBuzzed').textContent=label;$('yayBuzzed').className='status closed';yayRender();
+    }
+    function yayReset(){
+      yayRunning=false;cancelAnimationFrame(yayRaf);yayElapsedMs=0;yayCurrentBuzz=null;
+      $('yayGuessYear').value='';$('yayWrong').disabled=true;$('yayCorrect').disabled=true;
+      $('yayBuzzed').textContent='Bereit für einen neuen Song.';$('yayBuzzed').className='status closed';
+      socket.emit('host-reset');yayRender();
+    }
+    function yayEvaluate(){
+      const guess=Number($('yayGuessYear').value), correct=Number($('yayCorrectYear').value), tol=yayTol();
+      if(!Number.isFinite(guess)||!Number.isFinite(correct)||!guess||!correct){$('yayCheck').textContent='Bitte korrektes und geratenes Jahr eintragen.';return null}
+      const ok=Math.abs(guess-correct)<=tol;
+      $('yayCheck').textContent=`${guess} ist ${ok?'✅ GÜLTIG':'❌ NICHT GÜLTIG'} · erlaubt: ${tol?`${correct-tol}–${correct+tol}`:correct}`;
+      return ok;
+    }
+    $('yayStart').onclick=yayStart;
+    $('yayPause').onclick=()=>yayPause();
+    $('yayReset').onclick=yayReset;
+    $('yayCorrectYear').oninput=()=>yayRender();
+    $('yayGuessYear').oninput=()=>yayEvaluate();
+    $('yayWrong').onclick=()=>{
+      if(!yayCurrentBuzz)return;
+      if(yayEvaluate()===true && !confirm('Die eingetragene Jahreszahl liegt im gültigen Bereich. Trotzdem als falsch werten?'))return;
+      socket.emit('host-set-player-buzzer-lock',{id:yayCurrentBuzz.socketId,locked:true});
+      $('yayGuessYear').value='';yayCurrentBuzz=null;$('yayWrong').disabled=true;$('yayCorrect').disabled=true;
+      yayStartedPerf=performance.now();yayRunning=true;$('yayBuzzed').textContent='🟢 Weiter – nächster Buzz stoppt wieder';$('yayBuzzed').className='status open';
+      cancelAnimationFrame(yayRaf);yayRender();
+    };
+    $('yayCorrect').onclick=()=>{
+      if(!yayCurrentBuzz)return;
+      if(yayEvaluate()===false && !confirm('Die eingetragene Jahreszahl liegt außerhalb des gültigen Bereichs. Trotzdem als richtig werten?'))return;
+      const p=(state.players||[]).find(x=>x.id===yayCurrentBuzz.socketId);
+      if(p?.teamId) { for(let i=0;i<5;i++) socket.emit('host-change-team-score',{id:p.teamId,direction:1}); }
+      else if(p) { for(let i=0;i<5;i++) socket.emit('host-change-score',{id:p.id,direction:1}); }
+      yayPause(`✅ ${yayCurrentBuzz.name} richtig – +5 Punkte`);socket.emit('host-close');
+      $('yayWrong').disabled=true;$('yayCorrect').disabled=true;
+    };
 
     $('startRound').onclick = () => { ensureAudio(); socket.emit('host-start'); };
     $('closeRound').onclick = () => {
@@ -1920,8 +2004,12 @@ $('togglePlayerChat').onclick = () => {
       if (role === 'player') playBuzzSound();
     });
 
-    socket.on('buzz-event', () => {
+    socket.on('buzz-event', (buzz) => {
       if (role === 'host') playBuzzSound();
+      if(role==='host' && $('yayEnabled')?.checked && yayRunning){
+        yayCurrentBuzz=buzz;yayPause(`🔔 ${buzz?.name||'Jemand'} hat gebuzzert – Timer eingefroren`);
+        $('yayWrong').disabled=false;$('yayCorrect').disabled=false;$('yayGuessYear').focus();
+      }
     });
 
     socket.on('early-buzz-confirmed', () => {
