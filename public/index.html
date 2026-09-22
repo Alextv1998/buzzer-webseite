@@ -957,7 +957,9 @@
           <div class="controls" style="margin-top:10px">
             <button id="yayStart" class="host-start" type="button">▶️ Song starten</button>
             <button id="yayPause" class="small-button" type="button">⏸️ Pause</button>
-            <button id="yayReset" class="host-reset" type="button">↩️ Neuer Song</button><button id="yayOpenExternal" class="small-button" type="button">🖥️ Externes Fenster</button>
+            <button id="yayReset" class="host-reset" type="button">↩️ Neuer Song</button><button id="yayOpenExternal" class="small-button" type="button">🖥️ Externes Fenster</button></div>
+          <div class="points-panel" style="margin-top:9px"><label for="yayIntervalSeconds"><strong>Zeit pro Toleranzstufe:</strong></label><input id="yayIntervalSeconds" class="inline-input" type="number" min="1" max="120" step="0.5" value="10"><span>Sek.</span></div>
+          <div class="controls" style="display:none">
           </div>
           <div class="controls" style="margin-top:8px">
             <button id="yayWrong" class="host-close" type="button" disabled>❌ Falsch – weiter</button>
@@ -1312,6 +1314,7 @@
     function renderWorkspaceTabs(){
       const wrap=$('workspaceTabs'); if(!wrap) return; wrap.innerHTML='';
       workspaceTabs.forEach(t=>{ const b=document.createElement('button'); b.type='button'; b.className='workspace-tab'+(t.id===activeWorkspaceId?' active':''); b.textContent=t.name; b.onclick=()=>switchWorkspace(t.id); wrap.appendChild(b); });
+      if(typeof renderHotkeys==='function' && $('hotkeyRows')) renderHotkeys();
     }
     function switchWorkspace(id){
       if(!workspaceTabs.some(t=>t.id===id)) return; activeWorkspaceId=id; saveWorkspaceConfig(); renderWorkspaceTabs();
@@ -1764,6 +1767,10 @@ $('togglePlayerChat').onclick = () => {
       ['vkPlay','Video: Play'],['vkPause','Video: Pause'],['vkMute','Video: Ton aus'],['vkUnmute','Video: Ton an'],
       ['yayStart','Year After Year: Start/Weiter'],['yayPause','Year After Year: Pause'],['yayWrong','Year After Year: Falsch → weiter'],['yayCorrect','Year After Year: Richtig']
     ];
+    function allHotkeyActions(){
+      const tabs=(workspaceTabs||[]).map(t=>['workspace:'+t.id,'Tab öffnen: '+t.name]);
+      return [...hotkeyActions,...tabs];
+    }
     let hotkeyConfig={enabled:true,ignoreInputs:true,keys:{}}; let hotkeyLearning=null;
     try{const v=JSON.parse(localStorage.getItem(HOTKEY_STORAGE)||'null');if(v)hotkeyConfig={...hotkeyConfig,...v,keys:{...hotkeyConfig.keys,...(v.keys||{})}}}catch(_){ }
     const hotkeyHeldMods=new Set();
@@ -1782,17 +1789,17 @@ $('togglePlayerChat').onclick = () => {
     function renderHotkeys(){
       $('hotkeysEnabled').checked=hotkeyConfig.enabled;$('hotkeysIgnoreInputs').checked=hotkeyConfig.ignoreInputs;
       $('hotkeyStatus').textContent=hotkeyConfig.enabled?'🟢 HOTKEYS AKTIV':'🔴 HOTKEYS DEAKTIVIERT';$('hotkeyStatus').className='hotkey-status '+(hotkeyConfig.enabled?'on':'off');
-      $('hotkeyRows').innerHTML=hotkeyActions.map(([id,label])=>{const c=hotkeyConfig.keys[id]||{key:'',enabled:true};return `<div class="hotkey-row"><label><input type="checkbox" ${c.enabled!==false?'checked':''} onchange="setHotkeyEnabled('${id}',this.checked)"> ${label}</label><div class="hotkey-key">${escapeHtml(c.key||'—')}</div><button type="button" onclick="learnHotkey('${id}',this)">${hotkeyLearning===id?'Taste drücken …':'Belegen'}</button></div>`}).join('');
+      $('hotkeyRows').innerHTML=allHotkeyActions().map(([id,label])=>{const c=hotkeyConfig.keys[id]||{key:'',enabled:true};return `<div class="hotkey-row"><label><input type="checkbox" ${c.enabled!==false?'checked':''} onchange="setHotkeyEnabled('${id}',this.checked)"> ${label}</label><div class="hotkey-key">${escapeHtml(c.key||'—')}</div><button type="button" onclick="learnHotkey('${id}',this)">${hotkeyLearning===id?'Taste drücken …':'Belegen'}</button></div>`}).join('');
     }
     window.setHotkeyEnabled=(id,v)=>{hotkeyConfig.keys[id]={...(hotkeyConfig.keys[id]||{}),enabled:v};saveHotkeys();renderHotkeys()};
     window.learnHotkey=(id)=>{hotkeyLearning=id;renderHotkeys()};
-    function triggerHotkeyAction(id){if(id.startsWith('sound:')){const sound=id.split(':')[1];ensureAudio();socket.emit('host-play-sound',{sound,share:$('soundSharePlayers').checked,volume:soundVolumeFor(sound)});return} const el=$(id);if(el&&!el.disabled)el.click()}
+    function triggerHotkeyAction(id){if(id.startsWith('workspace:')){switchWorkspace(id.slice(10));return}if(id.startsWith('sound:')){const sound=id.split(':')[1];ensureAudio();socket.emit('host-play-sound',{sound,share:$('soundSharePlayers').checked,volume:soundVolumeFor(sound)});return} const el=$(id);if(el&&!el.disabled)el.click()}
     $('hotkeysEnabled').onchange=e=>{hotkeyConfig.enabled=e.target.checked;saveHotkeys();renderHotkeys()};
     $('hotkeysIgnoreInputs').onchange=e=>{hotkeyConfig.ignoreInputs=e.target.checked;saveHotkeys()};
     socket.on('global-hotkey',payload=>{
       if(role!=='host'||!hotkeyConfig.enabled)return;
       const sig=String(payload?.signature||'');
-      const hit=hotkeyActions.find(([id])=>{const c=hotkeyConfig.keys[id];return c&&c.enabled!==false&&c.key===sig});
+      const hit=allHotkeyActions().find(([id])=>{const c=hotkeyConfig.keys[id];return c&&c.enabled!==false&&c.key===sig});
       if(hit)triggerHotkeyAction(hit[0]);
     });
     document.addEventListener('keyup',e=>{const m=modifierName(e);if(m)hotkeyHeldMods.delete(m)});
@@ -1801,19 +1808,19 @@ $('togglePlayerChat').onclick = () => {
       if(role!=='host')return;
       if(hotkeyLearning){e.preventDefault();const sig=keySignature(e);if(!sig)return;hotkeyConfig.keys[hotkeyLearning]={key:sig,enabled:true};hotkeyLearning=null;saveHotkeys();renderHotkeys();return}
       if(!hotkeyConfig.enabled||e.repeat)return;const tag=document.activeElement?.tagName;if(hotkeyConfig.ignoreInputs&&(tag==='INPUT'||tag==='TEXTAREA'||tag==='SELECT'||document.activeElement?.isContentEditable))return;
-      const sig=keySignature(e);const hit=hotkeyActions.find(([id])=>{const c=hotkeyConfig.keys[id];return c&&c.enabled!==false&&c.key===sig});if(hit){e.preventDefault();triggerHotkeyAction(hit[0])}
+      const sig=keySignature(e);const hit=allHotkeyActions().find(([id])=>{const c=hotkeyConfig.keys[id];return c&&c.enabled!==false&&c.key===sig});if(hit){e.preventDefault();triggerHotkeyAction(hit[0])}
     });
     renderHotkeys();
 
     // Year After Year – gekoppelt an den bestehenden Buzzer.
     const yayExternalChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('musiklex-year-after-year-v1') : null;
     function yayExternalState(extra={}){
-      const ms=yayElapsed(), tol=yayTol(ms), correct=Number($('yayCorrectYear')?.value), guess=Number($('yayGuessYear')?.value);
-      const phaseMs=((ms%10000)+10000)%10000;
-      const remaining=Math.max(0,10000-phaseMs);
+      const ms=yayElapsed(), interval=yayIntervalMs(), tol=yayTol(ms), correct=Number($('yayCorrectYear')?.value), guess=Number($('yayGuessYear')?.value);
+      const phaseMs=((ms%interval)+interval)%interval;
+      const remaining=Math.max(0,interval-phaseMs);
       let result=null;
       if(Number.isFinite(guess)&&guess>0&&Number.isFinite(correct)&&correct>0) result=Math.abs(guess-correct)<=tol;
-      return {type:'state',ms,tol,remaining,progress:remaining/10000,running:yayRunning,
+      return {type:'state',ms,tol,remaining,interval,progress:remaining/interval,running:yayRunning,
         correct:Number.isFinite(correct)&&correct>0?correct:null,guess:Number.isFinite(guess)&&guess>0?guess:null,
         result,buzzed:yayCurrentBuzz?.name||'',...extra};
     }
@@ -1824,7 +1831,8 @@ $('togglePlayerChat').onclick = () => {
     }
     let yayRunning=false, yayElapsedMs=0, yayStartedPerf=0, yayCurrentBuzz=null, yayRaf=0;
     function yayElapsed(){return yayElapsedMs+(yayRunning?(performance.now()-yayStartedPerf):0)}
-    function yayTol(ms=yayElapsed()) { return Math.max(0, Math.floor(ms/10000)); }
+    function yayIntervalMs(){const s=Math.max(1,Math.min(120,Number($('yayIntervalSeconds')?.value)||10));return s*1000}
+    function yayTol(ms=yayElapsed()) { return Math.max(0, Math.floor(ms/yayIntervalMs())); }
     function yayRender(){
       const ms=yayElapsed(), tol=yayTol(ms), sec=ms/1000;
       $('yayTimer').textContent=sec.toFixed(2).replace('.',',')+' s';
@@ -1875,6 +1883,8 @@ $('togglePlayerChat').onclick = () => {
     $('yayPause').onclick=()=>yayPause();
     $('yayReset').onclick=yayReset;
     $('yayCorrectYear').oninput=()=>yayRender();
+    try{$('yayIntervalSeconds').value=localStorage.getItem('musiklexYayIntervalSeconds')||'10'}catch(_){}
+    $('yayIntervalSeconds').oninput=()=>{let v=Math.max(1,Math.min(120,Number($('yayIntervalSeconds').value)||10));try{localStorage.setItem('musiklexYayIntervalSeconds',String(v))}catch(_){};yayRender()};
     $('yayGuessYear').oninput=()=>yayEvaluate();
     $('yayWrong').onclick=()=>{
       if(!yayCurrentBuzz)return;
