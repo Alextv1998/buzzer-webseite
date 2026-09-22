@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Year After Year</title>
+<style>
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#fff;background:#090b12}
+*{box-sizing:border-box} body{margin:0;min-height:100vh;display:grid;place-items:center;background:radial-gradient(circle at 50% 20%,#20263b 0,#0c0f19 45%,#07080d 100%);transition:.28s}
+.wrap{width:min(900px,92vw);text-align:center}.eyebrow{letter-spacing:.35em;text-transform:uppercase;opacity:.6;font-weight:800}
+h1{font-size:clamp(2rem,5vw,4rem);margin:.2em 0 .55em}.tol{font-size:clamp(4rem,12vw,8.5rem);font-weight:1000;line-height:1;text-shadow:0 8px 40px #000}
+.sub{font-size:1.25rem;opacity:.72;margin-top:.7rem}
+.barbox{margin:2.3rem auto 1.7rem;width:min(760px,90%);height:34px;border-radius:99px;padding:5px;background:#ffffff17;border:1px solid #ffffff24;overflow:hidden}
+.bar{height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,#fff,#aebcff);transition:width .06s linear}
+.next{font-weight:800;opacity:.75}.card{margin:2.2rem auto 0;padding:1.2rem;border:1px solid #ffffff22;background:#ffffff0c;border-radius:24px;width:min(650px,90%)}
+input{width:220px;font-size:2.1rem;text-align:center;border:0;border-radius:15px;padding:.45rem .7rem;outline:none}
+button{font-size:1.15rem;font-weight:900;border:0;border-radius:14px;padding:.85rem 1.2rem;margin-left:.5rem;cursor:pointer}
+.result{height:92px;display:grid;place-items:center;font-size:4rem;font-weight:1000;margin-top:.8rem}
+body.good{background:radial-gradient(circle at 50% 20%,#207c49,#0d321f 55%,#07110b)} body.bad{background:radial-gradient(circle at 50% 20%,#9b3030,#3a1010 55%,#150707)}
+body.good .result::before{content:"✓"} body.bad .result::before{content:"✕"}
+body.good .card{border-color:#78ffae88;background:#2ee06d18} body.bad .card{border-color:#ff858588;background:#ff333318}
+.status{margin-top:1rem;font-size:1rem;opacity:.55}.paused{font-size:1.05rem;font-weight:900;margin-top:.6rem}
+</style></head>
+<body><main class="wrap">
+<div class="eyebrow">Musiklex</div><h1>YEAR AFTER YEAR</h1>
+<div id="tol" class="tol">EXAKT</div><div id="range" class="sub">Warte auf den Host …</div>
+<div class="barbox"><div id="bar" class="bar"></div></div>
+<div id="next" class="next">Nächste Toleranz in 10,0 s</div><div id="paused" class="paused"></div>
+<div class="card"><div style="font-weight:800;margin-bottom:.7rem">JAHRESZAHL EINGEBEN</div>
+<input id="guess" type="number" min="1900" max="2100" placeholder="2019"><button id="send">PRÜFEN</button>
+<div class="result"></div></div><div class="status">Die korrekte Jahreszahl bleibt in der Moderatoransicht verborgen.</div>
+</main>
+<script>
+const ch=('BroadcastChannel'in window)?new BroadcastChannel('musiklex-year-after-year-v1'):null;
+let state={ms:0,tol:0,remaining:10000,progress:1,running:false,correct:null,result:null};
+const $=id=>document.getElementById(id);
+function render(s){state={...state,...s};$('tol').textContent=state.tol===0?'EXAKT':`±${state.tol} JAHR${state.tol===1?'':'E'}`;
+ $('bar').style.width=`${Math.max(0,Math.min(1,state.progress??1))*100}%`;
+ $('next').textContent=`Nächste Toleranz in ${((state.remaining??10000)/1000).toFixed(1).replace('.',',')} s`;
+ $('paused').textContent=state.running?'':(state.buzzed?`🔔 ${state.buzzed} hat gebuzzert`:'⏸ Angehalten');
+ // Never expose correct year/range in the external view before a guess.
+ $('range').textContent=state.result===null?'Aktuelle Toleranz':'';
+ document.body.classList.toggle('good',state.result===true);document.body.classList.toggle('bad',state.result===false);
+}
+function command(action,value){const d={type:'command',action,value,stamp:Date.now()};try{ch?.postMessage(d)}catch(_){};try{localStorage.setItem('musiklexYearAfterYearCommandV1',JSON.stringify(d))}catch(_){}}
+function submit(){const v=Number($('guess').value);if(!Number.isFinite(v)||!v)return;$('guess').blur();command('guess',v)}
+$('send').onclick=submit;$('guess').addEventListener('keydown',e=>{if(e.key==='Enter')submit()});
+ch?.addEventListener('message',e=>{if(e.data?.type==='state')render(e.data)});
+window.addEventListener('storage',e=>{if(e.key==='musiklexYearAfterYearStateV1'&&e.newValue)try{render(JSON.parse(e.newValue))}catch(_){}});
+try{const s=JSON.parse(localStorage.getItem('musiklexYearAfterYearStateV1')||'null');if(s)render(s)}catch(_){}
+command('requestState');
+</script></body></html>

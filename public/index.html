@@ -957,7 +957,7 @@
           <div class="controls" style="margin-top:10px">
             <button id="yayStart" class="host-start" type="button">▶️ Song starten</button>
             <button id="yayPause" class="small-button" type="button">⏸️ Pause</button>
-            <button id="yayReset" class="host-reset" type="button">↩️ Neuer Song</button>
+            <button id="yayReset" class="host-reset" type="button">↩️ Neuer Song</button><button id="yayOpenExternal" class="small-button" type="button">🖥️ Externes Fenster</button>
           </div>
           <div class="controls" style="margin-top:8px">
             <button id="yayWrong" class="host-close" type="button" disabled>❌ Falsch – weiter</button>
@@ -1806,6 +1806,22 @@ $('togglePlayerChat').onclick = () => {
     renderHotkeys();
 
     // Year After Year – gekoppelt an den bestehenden Buzzer.
+    const yayExternalChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('musiklex-year-after-year-v1') : null;
+    function yayExternalState(extra={}){
+      const ms=yayElapsed(), tol=yayTol(ms), correct=Number($('yayCorrectYear')?.value), guess=Number($('yayGuessYear')?.value);
+      const phaseMs=((ms%10000)+10000)%10000;
+      const remaining=Math.max(0,10000-phaseMs);
+      let result=null;
+      if(Number.isFinite(guess)&&guess>0&&Number.isFinite(correct)&&correct>0) result=Math.abs(guess-correct)<=tol;
+      return {type:'state',ms,tol,remaining,progress:remaining/10000,running:yayRunning,
+        correct:Number.isFinite(correct)&&correct>0?correct:null,guess:Number.isFinite(guess)&&guess>0?guess:null,
+        result,buzzed:yayCurrentBuzz?.name||'',...extra};
+    }
+    function yayPublish(extra={}){
+      const payload=yayExternalState(extra);
+      try{yayExternalChannel?.postMessage(payload)}catch(_){}
+      try{localStorage.setItem('musiklexYearAfterYearStateV1',JSON.stringify({...payload,stamp:Date.now()}))}catch(_){}
+    }
     let yayRunning=false, yayElapsedMs=0, yayStartedPerf=0, yayCurrentBuzz=null, yayRaf=0;
     function yayElapsed(){return yayElapsedMs+(yayRunning?(performance.now()-yayStartedPerf):0)}
     function yayTol(ms=yayElapsed()) { return Math.max(0, Math.floor(ms/10000)); }
@@ -1815,6 +1831,7 @@ $('togglePlayerChat').onclick = () => {
       $('yayTolerance').textContent=tol===0?'EXAKT':'±'+tol+' JAHR'+(tol===1?'':'E');
       const cy=Number($('yayCorrectYear').value);
       $('yayRange').textContent=Number.isFinite(cy)&&cy>0?(tol===0?`Gültig: ${cy}`:`Gültig: ${cy-tol}–${cy+tol}`):'Korrektes Jahr eintragen.';
+      yayPublish();
       if(yayRunning) yayRaf=requestAnimationFrame(yayRender);
     }
     function yayStart(){
@@ -1842,6 +1859,18 @@ $('togglePlayerChat').onclick = () => {
       $('yayCheck').textContent=`${guess} ist ${ok?'✅ GÜLTIG':'❌ NICHT GÜLTIG'} · erlaubt: ${tol?`${correct-tol}–${correct+tol}`:correct}`;
       return ok;
     }
+    $('yayOpenExternal').onclick=()=>window.open('/tools/year-after-year.html','musiklexYearAfterYear','width=1000,height=720,resizable=yes');
+    yayExternalChannel?.addEventListener('message',e=>{
+      if(role!=='host'||!e.data||e.data.type!=='command')return;
+      if(e.data.action==='guess'){
+        $('yayGuessYear').value=String(e.data.value??'');
+        yayEvaluate(); yayPublish();
+      } else if(e.data.action==='requestState') yayPublish();
+    });
+    window.addEventListener('storage',e=>{
+      if(role!=='host'||e.key!=='musiklexYearAfterYearCommandV1'||!e.newValue)return;
+      try{const d=JSON.parse(e.newValue);if(d.action==='guess'){$('yayGuessYear').value=String(d.value??'');yayEvaluate();yayPublish();}}catch(_){}
+    });
     $('yayStart').onclick=yayStart;
     $('yayPause').onclick=()=>yayPause();
     $('yayReset').onclick=yayReset;
