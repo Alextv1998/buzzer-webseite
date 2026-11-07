@@ -779,6 +779,7 @@
       <div class="role-buttons">
         <button id="playerRole">Ich bin Spieler</button>
         <button id="hostRole">Ich bin Host</button>
+        <button id="spectatorRole" type="button" onclick="location.href='/zuschauer'">Ich bin Zuschauer</button>
       </div>
     </section>
 
@@ -1890,6 +1891,7 @@ $('togglePlayerChat').onclick = () => {
       if(!yayCurrentBuzz)return;
       if(yayEvaluate()===true && !confirm('Die eingetragene Jahreszahl liegt im gültigen Bereich. Trotzdem als falsch werten?'))return;
       socket.emit('host-set-player-buzzer-lock',{id:yayCurrentBuzz.socketId,locked:true});
+      socket.emit('host-spectator-continue');
       $('yayGuessYear').value='';yayCurrentBuzz=null;$('yayWrong').disabled=true;$('yayCorrect').disabled=true;
       yayStartedPerf=performance.now();yayRunning=true;$('yayBuzzed').textContent='🟢 Weiter – nächster Buzz stoppt wieder';$('yayBuzzed').className='status open';
       cancelAnimationFrame(yayRaf);yayRender();
