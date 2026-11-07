@@ -31,6 +31,7 @@ app.post('/api/global-hotkey', (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/zuschauer', (req, res) => res.sendFile(path.join(__dirname, 'public', 'zuschauer.html')));
 app.use(express.static(path.join(__dirname, 'public')));
 
 let roundOpen = false;
@@ -38,6 +39,7 @@ let roundStart = null;
 let globalBuzzerLocked = false;
 let buzzes = [];
 let earlyBuzzes = [];
+let spectatorBuzzIndex = 0;
 let pointValue = 1;
 let earlyBuzzPenaltySeconds = 0;
 let showPlayerBuzzDetails = false;
@@ -454,8 +456,16 @@ function publicState() {
   };
 }
 
+function spectatorState() {
+  const buzz = buzzes[spectatorBuzzIndex] || null;
+  const team = buzz ? getTeam(buzz.teamId) : null;
+  if (buzz) return { status: 'buzzed', name: team?.name || buzz.name || 'Spieler', color: team?.color || '#8b5cf6' };
+  return { status: roundOpen && !globalBuzzerLocked ? 'active' : 'locked' };
+}
+
 function broadcastState() {
   io.emit('state', publicState());
+  io.emit('spectator-state', spectatorState());
   broadcastAnswerStates();
 }
 
@@ -487,6 +497,7 @@ io.on('connection', (socket) => {
   });
 
   socket.emit('state', publicState());
+  socket.emit('spectator-state', spectatorState());
 
   socket.on('join-player', (name) => {
     const nameClean = cleanName(name);
@@ -578,6 +589,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('host-start', () => {
+    spectatorBuzzIndex = 0;
     buzzes = [];
     roundStart = Date.now();
     roundOpen = true;
@@ -594,6 +606,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('host-reset', () => {
+    spectatorBuzzIndex = 0;
     roundOpen = false;
     roundStart = null;
     globalBuzzerLocked = false;
@@ -1009,7 +1022,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('host-next-answer-timer', () => {
-    if (!answerTimerEnabled || !buzzes.length) return;
+    if (!buzzes.length) return;
+    spectatorBuzzIndex = Math.min(spectatorBuzzIndex + 1, buzzes.length);
+    if (!answerTimerEnabled) { broadcastState(); return; }
     const currentIndex = buzzes.findIndex((b) => b.socketId === answerTimerBuzzSocketId);
     const nextIndex = currentIndex < 0 ? 0 : currentIndex + 1;
     if (nextIndex >= buzzes.length) {
@@ -1020,6 +1035,11 @@ io.on('connection', (socket) => {
       answerTimerBuzzSocketId = buzzes[nextIndex].socketId;
       answerTimerStartedAt = Date.now();
     }
+    broadcastState();
+  });
+
+  socket.on('host-spectator-continue', () => {
+    spectatorBuzzIndex = Math.min(spectatorBuzzIndex + 1, buzzes.length);
     broadcastState();
   });
 
