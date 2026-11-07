@@ -3,5 +3,38 @@
 </style></head><body><section class="panel offline" id="panel" aria-live="polite"><div class="dotline"><span class="indicator"></span><span class="eyebrow" id="heading">SHOWLEX BUZZER</span></div><div class="main" id="main">VERBINDE …</div><div class="subtitle" id="sub">Warte auf Serververbindung</div></section><script src="/socket.io/socket.io.js"></script><script>
 const panel=document.getElementById('panel'),heading=document.getElementById('heading'),main=document.getElementById('main'),sub=document.getElementById('sub');const socket=io({reconnection:true});
 function show(status,name,color){let accent='#ef4444',head='BUZZERSTATUS',title='BUZZER GESPERRT',description='Buzzern derzeit nicht möglich';if(status==='active'){accent='#22c55e';title='BUZZER AKTIV';description='Bereit zum Buzzern'}else if(status==='buzzed'){accent=/^#[0-9a-fA-F]{6}$/.test(color||'')?color:'#8b5cf6';head='BUZZER GEDRÜCKT';title=name||'TEAM';description='Hat gebuzzert!'}else if(status==='offline'){accent='#64748b';title='VERBINDUNG GETRENNT';description='Warte auf Serververbindung'}panel.style.setProperty('--accent',accent);heading.textContent=head;main.textContent=title;sub.textContent=description}
-socket.on('spectator-state',s=>show(s.status,s.name,s.color));socket.on('disconnect',()=>show('offline'));socket.on('connect_error',()=>show('offline'));
+let latestState=null, spectatorSignalReceived=false, selectedIndex=0;
+function displayFromState(s){
+  if(!s)return;
+  const buzzes=Array.isArray(s.buzzes)?s.buzzes:[];
+  if(buzzes.length && selectedIndex<buzzes.length){
+    const buzz=buzzes[selectedIndex];
+    const teams=Array.isArray(s.teams)?s.teams:[];
+    const team=teams.find(t=>t.id===buzz.teamId);
+    show('buzzed',team?.name||buzz.name||'TEAM',team?.color||'#8b5cf6');
+  }else show(s.roundOpen&&!s.globalBuzzerLocked?'active':'locked');
+}
+socket.on('state',s=>{
+  const oldBuzzes=Array.isArray(latestState?.buzzes)?latestState.buzzes:[];
+  const newBuzzes=Array.isArray(s?.buzzes)?s.buzzes:[];
+  if(!newBuzzes.length || (s.roundStart!==latestState?.roundStart && latestState))selectedIndex=0;
+  latestState=s;
+  // Existing server versions already publish this authoritative state.
+  // When spectator-state is available, it can additionally track "Weiter".
+  if(!spectatorSignalReceived)displayFromState(s);
+});
+socket.on('spectator-state',s=>{
+  spectatorSignalReceived=true;
+  if(s.status==='buzzed'){
+    const buzzes=Array.isArray(latestState?.buzzes)?latestState.buzzes:[];
+    const teams=Array.isArray(latestState?.teams)?latestState.teams:[];
+    const matching= buzzes.findIndex(b=>teams.some(t=>t.id===b.teamId && t.name===s.name));
+    if(matching>=0)selectedIndex=matching;
+  }else if(s.status==='active' && latestState?.buzzes?.length){
+    selectedIndex=latestState.buzzes.length;
+  }
+  show(s.status,s.name,s.color);
+});
+socket.on('disconnect',()=>{spectatorSignalReceived=false;latestState=null;show('offline')});
+socket.on('connect_error',()=>show('offline'));
 </script></body></html>
